@@ -102,6 +102,7 @@ public:
    * \brief Definition of the Ecn state machine
    *
    */
+  /* XXX. ns3.29 original ecn state definition, echken */
   typedef enum
   {
     ECN_DISABLED = 0, /**< ECN disabled traffic                                                                          */

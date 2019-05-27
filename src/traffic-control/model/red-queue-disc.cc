@@ -406,6 +406,7 @@ RedQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
       m_old = 0;
     }
 
+  //XXX. mark pkts with some flags, e.g ecn 
   if (dropType == DTYPE_UNFORCED)
     {
       if (!m_useEcn || !Mark (item, UNFORCED_MARK))

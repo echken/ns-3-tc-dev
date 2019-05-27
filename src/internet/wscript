@@ -227,6 +227,8 @@ def build(bld):
         'model/rip.cc',
         'model/rip-header.cc',
         'helper/rip-helper.cc',
+        # XXX added 
+        'model/Dctcp.cc',
         ]
 
     internet_test = bld.create_ns3_module_test_library('internet')
@@ -414,6 +416,8 @@ def build(bld):
         'model/rip.h',
         'model/rip-header.h',
         'helper/rip-helper.h',
+        # XXX added 
+        'model/Dctcp.h',
        ]
 
     if bld.env['NSC_ENABLED']:
