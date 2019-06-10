@@ -228,10 +228,25 @@ public:
    */
   int64_t AssignStreams (int64_t stream);
 
+  //XXX some kind of ecmp variance, PER-FLOW, ROUND-ROBIN, PER-FLOWLET, and so on.  echken. 
+  typedef enum 
+  {
+      ECMP_NONE,
+      ECMP_RANDOM,
+      ECMP_PER_FLOW,
+      ECMP_RR,
+      ECMP_FLOWLET,
+      ECMP_FLOWLET_RR
+  } EcmpMode_t;
+
 protected:
   void DoDispose (void);
 
 private:
+  //XXX some kind of ecmp variance, PER-FLOW, ROUND-ROBIN, PER-FLOWLET, and so on.  echken. 
+  EcmpMode_t m_EcmpMode {EcmpMode_t::ECMP_RANDOM};
+  uint32_t m_lastInterfaceUsed;
+
   /// Set to true if packets are randomly routed among ECMP; set to false for using only one route consistently
   bool m_randomEcmpRouting;
   /// Set to true if this interface should respond to interface events by globallly recomputing routes 
@@ -266,7 +281,7 @@ private:
    * \param oif output interface if any (put 0 otherwise)
    * \return Ipv4Route to route the packet to reach dest address
    */
-  Ptr<Ipv4Route> LookupGlobal (Ipv4Address dest, Ptr<NetDevice> oif = 0);
+  Ptr<Ipv4Route> LookupGlobal (const Ipv4Header &header, Ptr<Packet> packet, Ptr<NetDevice> oif = 0);
 
   HostRoutes m_hostRoutes;             //!< Routes to hosts
   NetworkRoutes m_networkRoutes;       //!< Routes to networks

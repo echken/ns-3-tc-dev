@@ -2847,6 +2847,112 @@ TcpSocketBase::ConnectionSucceeded ()
     }
 }
 
+//TODO. add flowidtags.  echken.  
+
+uint32_t
+TcpSocketBase::Get5TupleFlowHash(const Ipv4Header &header, Ptr<const Packet> packet)
+{
+  NS_LOG_FUNCTION(header);
+
+  Ptr<Node> node = m_ipv4->GetObject<Node>();
+  //node ID for polarization
+  //uint32_t node_id = node->GetId();
+
+  hasher.clear();
+  std::ostringstream oss;
+  oss << header.GetSource()
+      << header.GetDestination()
+      << header.GetProtocol()
+      << m_seed;
+
+  switch (header.GetProtocol())
+    {
+  case UDP_PROT_NUMBER:
+    {
+      UdpHeader udpHeader;
+      packet->PeekHeader(udpHeader);
+//      NS_LOG_DEBUG ("FiveTuple() -> UDP: (src, dst, protNb, sPort, dPort) - "
+//          << header.GetSource() << " , "
+//          << header.GetDestination() << " , "
+//          << (int)header.GetProtocol() << " , "
+//          << (int)udpHeader.GetSourcePort () << " , "
+//          << (int)udpHeader.GetDestinationPort ());
+
+      oss << udpHeader.GetSourcePort()
+          << udpHeader.GetDestinationPort();
+
+      break;
+    }
+  case TCP_PROT_NUMBER:
+    {
+      TcpHeader tcpHeader;
+      packet->PeekHeader(tcpHeader);
+//      NS_LOG_DEBUG ("FiveTuple() -> TCP: (src, dst, protNb, sPort, dPort) -  "
+//          << header.GetSource() << " , "
+//          << header.GetDestination() << " , "
+//          << (int)header.GetProtocol() << " , "
+//          << (int)tcpHeader.GetSourcePort () << " , "
+//          << (int)tcpHeader.GetDestinationPort ());
+
+      oss << tcpHeader.GetSourcePort()
+          << tcpHeader.GetDestinationPort();
+
+      break;
+    }
+  default:
+    {
+    	//TODO maybe this brings us problems with other protcols no?
+    	//What about not even doing this... we can hash using just src,dst,proto, id
+      NS_FATAL_ERROR("Udp or Tcp header not found " << (int) header.GetProtocol());
+      break;
+    }
+    }
+
+  std::string data = oss.str();
+  uint32_t hash = hasher.GetHash32(data);
+  oss.str("");
+  //NS_LOG_UNCOND("hash value node: " << node_id << " " << hash << " seed: " << m_seed);
+  return hash;
+}
+
+#include "ns3/flow-id-tags.h"
+void TcpSocketBase::AddFlowId (Ptr<Packet> packet, const Ipv4Address &saddr, const Ipv4Address &daddr, 
+                               uint16_t sport, uint16_t dport)
+{
+    uint32_t flowId = TcpSocketBase::SetFlowId(saddr, daddr, sport, dport);
+    packet->AddPacketTag(FlowIdTag(flowId));
+}
+
+#include "ns3/hash.h"
+uint32_t TcpSocketBase::SetFlowId (const Ipv4Address &saddr, const Ipv4Address &daddr, 
+                                   uint16_t sport, uint16_t, dport)
+{
+    std::stringstream hash_string;
+    hash_string << daddr.Get();
+    hash_string << dport;
+
+    return Hash32 (hash_string.str());
+}
+
+uint32_t TcpSocketBase::GetFlowId (Ptr<const Packet> packet)
+{
+    uint32_t flowId = 0;
+    if (packet == NULL)
+    {
+        NS_LOG_ERROR("empty packet,");
+    }
+    else 
+    {
+        FlowIdTag flowIdTag;
+        if(packet->PeekPacketTag(flowIdTag));
+        {
+            flowId = flowIdTag.GetFlowId();
+        }
+    }
+    return flowId;
+}
+//end TODO.
+
 void
 TcpSocketBase::AddSocketTags (const Ptr<Packet> &p) const
 {
@@ -2867,7 +2973,7 @@ TcpSocketBase::AddSocketTags (const Ptr<Packet> &p) const
       else
         {
           // Set the last received ipTos
-          // XXX if ecn not enable, set iptostag to tos. echken 
+          // XXX if ecn not enable, set iptostag to tos(00). echken 
           ipTosTag.SetTos (GetIpTos ());
         }
       p->AddPacketTag (ipTosTag);

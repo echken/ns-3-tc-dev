@@ -48,6 +48,17 @@ Ipv4GlobalRouting::GetTypeId (void)
                    BooleanValue (false),
                    MakeBooleanAccessor (&Ipv4GlobalRouting::m_randomEcmpRouting),
                    MakeBooleanChecker ())
+ //XXX some kind of ecmp variance, PER-FLOW, ROUND-ROBIN, PER-FLOWLET, and so on.  echken. 
+    .AddAttribute("EcmpMode_t", 
+                  "Set ECMP mode to control ecmp routing granularity",
+                  EnumValue(ECMP_NONE),
+                  MakeEnumAccessor(&Ipv4GlobalRouting::m_EcmpMode),
+                  MakeEnumChecker(EcmpMode_t::ECMP_NONE, "ECMP_NONE",
+                                  EcmpMode_t::ECMP_RANDOM, "ECMP_RANDOM",
+                                  EcmpMode_t::ECMP_PER_FLOW, "ECMP_PER_FLOW",
+                                  EcmpMode_t::ECMP_RR, "ECMP_RR",
+                                  EcmpMode_t::ECMP_FLOWLET, "ECMP_FLOWLET",
+                                  EcmpMode_t::ECMP_FLOWLET_RR, "ECMP_FLOWLET_RR"))
     .AddAttribute ("RespondToInterfaceEvents",
                    "Set to true if you want to dynamically recompute the global routes upon Interface notification events (up/down, or add/remove address)",
                    BooleanValue (false),
@@ -59,6 +70,7 @@ Ipv4GlobalRouting::GetTypeId (void)
 
 Ipv4GlobalRouting::Ipv4GlobalRouting () 
   : m_randomEcmpRouting (false),
+    m_EcmpMode(EcmpMode_t::ECMP_NONE), 
     m_respondToInterfaceEvents (false)
 {
   NS_LOG_FUNCTION (this);
@@ -137,7 +149,7 @@ Ipv4GlobalRouting::AddASExternalRouteTo (Ipv4Address network,
 
 
 Ptr<Ipv4Route>
-Ipv4GlobalRouting::LookupGlobal (Ipv4Address dest, Ptr<NetDevice> oif)
+Ipv4GlobalRouting::LookupGlobal (Ipv4Header header, Ptr<Packet> packet,  Ptr<NetDevice> oif)
 {
   NS_LOG_FUNCTION (this << dest << oif);
   NS_LOG_LOGIC ("Looking for route for destination " << dest);
@@ -146,6 +158,8 @@ Ipv4GlobalRouting::LookupGlobal (Ipv4Address dest, Ptr<NetDevice> oif)
   typedef std::vector<Ipv4RoutingTableEntry*> RouteVec_t;
   RouteVec_t allRoutes;
 
+  Ipv4Address dest = header.GetDestination();
+  
   NS_LOG_LOGIC ("Number of m_hostRoutes = " << m_hostRoutes.size ());
   for (HostRoutesCI i = m_hostRoutes.begin (); 
        i != m_hostRoutes.end (); 
@@ -224,6 +238,36 @@ Ipv4GlobalRouting::LookupGlobal (Ipv4Address dest, Ptr<NetDevice> oif)
         {
           selectIndex = m_rand->GetInteger (0, allRoutes.size ()-1);
         }
+      //TODO for implement serveral granularity routing alg. echken. 
+      //
+      else if(allRoutes.size() > 1)
+      {
+          switch(m_EcmpMode)
+          {
+          case ECMP_NONE:
+              selectIndex = 0;
+              break;
+          case m_EcmpMode::ECMP_PER_FLOW:
+              uint32_t flowId;
+              flowId = TcpSocketBase::Get5TupleFlowHash(header, packet);
+              selectIndex = flowId % allRoutes.size();
+              NS_LOG_LOGIC("Per flow ECMP is enabled");
+          case ECMP_RR:
+              uint32_t nextInterface;
+              nextInterface = (m_lastInterfaceUsed + 1) % (allRoutes.size());
+              
+              selectIndex = nextInterface;
+              m_lastInterfaceUsed = nextInterface;
+              break;
+              //TODO. Implement flowlet random routing and flowlet round robin routing. echken  
+          /* case ECMP_FLOWLET: */
+          /* case ECMP_FLOWLET_RR: */
+              
+          default:
+              selectIndex = 0;
+              break;
+          }
+      }
       else 
         {
           selectIndex = 0;
@@ -468,7 +512,7 @@ Ipv4GlobalRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<Net
 // See if this is a unicast packet we have a route for.
 //
   NS_LOG_LOGIC ("Unicast destination- looking up");
-  Ptr<Ipv4Route> rtentry = LookupGlobal (header.GetDestination (), oif);
+  Ptr<Ipv4Route> rtentry = LookupGlobal (header, p, oif);
   if (rtentry)
     {
       sockerr = Socket::ERROR_NOTERROR;
@@ -517,7 +561,7 @@ Ipv4GlobalRouting::RouteInput  (Ptr<const Packet> p, const Ipv4Header &header, P
     }
   // Next, try to find a route
   NS_LOG_LOGIC ("Unicast destination- looking up global route");
-  Ptr<Ipv4Route> rtentry = LookupGlobal (header.GetDestination ());
+  Ptr<Ipv4Route> rtentry = LookupGlobal (header, p);
   if (rtentry != 0)
     {
       NS_LOG_LOGIC ("Found unicast destination- calling unicast callback");
