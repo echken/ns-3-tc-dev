@@ -23,8 +23,11 @@
 #include "ns3/ipv4-routing-protocol.h"
 #include "ns3/simulator.h"
 #include "ns3/nstime.h"
+#include "ns3/ipv4-drb.h"
 
 namespace ns3 {
+
+class Ipv4Drb;
 
 /**
  * \ingroup ipv4Routing
@@ -91,6 +94,9 @@ public:
   virtual void SetIpv4 (Ptr<Ipv4> ipv4);
   virtual void PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::Unit unit = Time::S) const;
 
+  virtual void SetDrb(Ptr<Ipv4Drb> drb);
+  virtual Ptr<Ipv4Drb> GetDrb();
+
 protected:
   virtual void DoDispose (void);
   virtual void DoInitialize (void);
@@ -114,6 +120,7 @@ private:
   static bool Compare (const Ipv4RoutingProtocolEntry& a, const Ipv4RoutingProtocolEntry& b);
   Ptr<Ipv4> m_ipv4; //!< Ipv4 this protocol is associated with.
 
+  Ptr<Ipv4Drb> m_drb; //enable packet spraying alg, DRB. echken. 
 
 };
 

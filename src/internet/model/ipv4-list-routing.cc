@@ -23,6 +23,7 @@
 #include "ns3/node.h"
 #include "ns3/ipv4-static-routing.h"
 #include "ipv4-list-routing.h"
+#include "ipv4-drb-tag.h"
 
 namespace ns3 {
 
@@ -41,9 +42,8 @@ Ipv4ListRouting::GetTypeId (void)
   return tid;
 }
 
-
 Ipv4ListRouting::Ipv4ListRouting () 
-  : m_ipv4 (0)
+  : m_ipv4 (0), m_drb(0)
 {
   NS_LOG_FUNCTION (this);
 }
