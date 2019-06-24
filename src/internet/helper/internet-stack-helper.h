@@ -36,6 +36,8 @@ class Node;
 class Ipv4RoutingHelper;
 class Ipv6RoutingHelper;
 
+class Ipv4DrbHelper;
+
 /**
  * \defgroup internet Internet
  *
@@ -236,6 +238,9 @@ public:
   */
   int64_t AssignStreams (NodeContainer c, int64_t stream);
 
+  //set additional routing/lb enable. echken.
+  void SetDrb(bool enable);
+
 private:
   /**
    * @brief Enable pcap output the indicated Ipv4 and interface pair.
@@ -369,6 +374,9 @@ private:
    * \brief IPv6 IPv6 NS and RS Jitter state (enabled/disabled) ?
    */
   bool m_ipv6NsRsJitterEnabled;
+  
+  //additional routing/lb enabled. echken 
+  bool m_drb;
 };
 
 } // namespace ns3

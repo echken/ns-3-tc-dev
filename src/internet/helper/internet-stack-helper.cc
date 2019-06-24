@@ -50,6 +50,8 @@
 #include <limits>
 #include <map>
 
+#include "ns3/ipv4-drb-helper.h"
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("InternetStackHelper");
@@ -107,7 +109,8 @@ InternetStackHelper::InternetStackHelper ()
     m_ipv4Enabled (true),
     m_ipv6Enabled (true),
     m_ipv4ArpJitterEnabled (true),
-    m_ipv6NsRsJitterEnabled (true)
+    m_ipv6NsRsJitterEnabled (true),
+    m_drb(false)
 
 {
   Initialize ();
@@ -251,6 +254,10 @@ InternetStackHelper::AssignStreams (NodeContainer c, int64_t stream)
   return (currentStream - stream);
 }
 
+void InternetStackHelper::SetDrb(bool enable)
+{
+    m_drb = enable;
+}
 void
 InternetStackHelper::SetTcp (const std::string tid)
 {
@@ -312,6 +319,14 @@ InternetStackHelper::Install (Ptr<Node> node) const
       // Set routing
       Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
       Ptr<Ipv4RoutingProtocol> ipv4Routing = m_routing->Create (node);
+
+      //set DRB. 
+      if(m_drb && DynamicCast<Ipv4ListRouting>(ipv4Routing))
+      {
+        Ipv4DrbHelper drbHelper;
+        (DynamicCast<Ipv4ListRouting>(ipv4Routing))->SetDrb(drbHelper.Create(node));
+      }
+
       ipv4->SetRoutingProtocol (ipv4Routing);
     }
 

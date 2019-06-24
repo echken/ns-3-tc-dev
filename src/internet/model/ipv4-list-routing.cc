@@ -23,6 +23,7 @@
 #include "ns3/node.h"
 #include "ns3/ipv4-static-routing.h"
 #include "ipv4-list-routing.h"
+#include "ipv4-drb-tag.h"
 
 namespace ns3 {
 
@@ -41,9 +42,8 @@ Ipv4ListRouting::GetTypeId (void)
   return tid;
 }
 
-
 Ipv4ListRouting::Ipv4ListRouting () 
-  : m_ipv4 (0)
+  : m_ipv4 (0), m_drb(0)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -139,21 +139,67 @@ Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<
   NS_ASSERT (m_ipv4->GetInterfaceForDevice (idev) >= 0);
   uint32_t iif = m_ipv4->GetInterfaceForDevice (idev); 
 
+  //DRB alg, echken 
+  Ipv4DrbTag ipv4DrbTag;
+  bool founddrbtag = packet->PeekPacketTag(ipv4DrbTag);
+
+  FlowIdTag flowIdTag;
+  bool foundflowId = packet->PeekPacketTag(flowIdTag);
+
+  if(m_drb != 0 && !founddrbtag)
+  {
+      uint32_t flowId = 0;
+      if(foundflowId)
+      {
+          flowId = flowIdTag.GetFlowId();
+      }
+      else 
+      {
+          NS_LOG_DEBUG("DRB can't get flowId");
+      }
+
+      NS_LOG_DEBUF(this <<"drb enabled packet");
+      Ipv4Address address = m_drb->GetCoreSwitchAddress(flowId);
+      if(address !Ipv4Address())
+      {
+          Ipv4DrbTag ipv4DrbTag;
+          ipv4DrbTag.SetOriginalDestAddr(header.GetDestination());
+          header.SetDestination(address);
+          packet->AddPacketTag(ipv4DrbTag);
+          NS_LOG_FUNCTION("forwarding the packet to core switch:" << address);
+      }
+      else
+      {
+          NS_LOG_DEBUG("coreswitch address is invalid");
+      }
+  }
+   
+
   retVal = m_ipv4->IsDestinationAddress (header.GetDestination (), iif);
   if (retVal == true)
     {
-      NS_LOG_LOGIC ("Address "<< header.GetDestination () << " is a match for local delivery");
-      if (header.GetDestination ().IsMulticast ())
+        //DRB, for intermediate core switch to extract original end to end destination address. echken 
+        if(founddrbtag && !m_ipv4->IsDestinationAddress(ipv4DrbTag.GetOriginalDestAddr(), iif))
         {
-          Ptr<Packet> packetCopy = p->Copy ();
-          lcb (packetCopy, header, iif);
-          retVal = true;
-          // Fall through
+            Ipv4Address originalDestAddr =ipv4DrbTag.GetOriginalDestAddr();
+            header.SetDestination(originalDestAddr);
+            NS_LOG_DEBUG("core switch receive packet, bounce to original address:" << originalDestAddr);
         }
-      else
+        else
         {
-          lcb (p, header, iif);
-          return true;
+            NS_LOG_LOGIC ("Address "<< header.GetDestination () << " is a match for local delivery");
+            if (header.GetDestination ().IsMulticast ())
+              {
+                Ptr<Packet> packetCopy = p->Copy ();
+                lcb (packetCopy, header, iif);
+                retVal = true;
+                // Fall through
+              }
+            else
+              {
+                lcb (p, header, iif);
+                return true;
+              }
         }
     }
   // Check if input device supports IP forwarding
