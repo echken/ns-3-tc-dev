@@ -5,7 +5,7 @@
 #include "ns3/ipv4-address.h"
 
 namespace ns3 {
-class IpvrDrbTag :: public Tag
+class Ipv4DrbTag : public Tag
 {
 public:
     Ipv4DrbTag();
@@ -19,14 +19,14 @@ public:
     static TypeId GetTypeId(void);
     virtual TypeId GetInstanceTypeId(void) const;
 
-    virtual Serialize(TagBuffer i) const;
-    virtual Deserialize(TagBuffer i);
-    virtual GetSerialziedSize(void) const;
+    virtual void Serialize(TagBuffer i) const;
+    virtual void Deserialize(TagBuffer i);
+    virtual uint32_t GetSerialziedSize(void) const;
 
-    virtual Print(std::ostream &os) const;
+    virtual void Print(std::ostream &os) const;
 
 private:
     Ipv4Address m_addr;
-}
+};
 }
 #endif

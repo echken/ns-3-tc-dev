@@ -32,7 +32,7 @@ private:
                           const TcpSocketState::TcpCAEvent_t);
 
     void SetDctcpAlpha(double alpha);
-    void Reset(Ptr<TcpSocketState tcb);
+    void Reset(Ptr<TcpSocketState> tcb);
 
     //parameter
     uint32_t m_ackedBytesCongestion;  //Bytes experience congestion

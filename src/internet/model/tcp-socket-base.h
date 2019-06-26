@@ -602,8 +602,8 @@ protected:
 
   //add && set flowid function. echken 
   void AddFlowId(Ptr<Packet> packet, const Ipv4Address &saddr, const Ipv4Address &daddr,
-                 uint16_t sport, uint16_t dport)                                        
-  uint32_t SetFlowId(const Ipv4Address &saddr, const Ipv4Address &daddr, uint16_t sport, uint16_t dport)
+                 uint16_t sport, uint16_t dport);                                        
+  uint32_t SetFlowId(const Ipv4Address &saddr, const Ipv4Address &daddr, uint16_t sport, uint16_t dport);
   uint32_t GetFlowId(Ptr<Packet> packet);
   uint32_t Get5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet);
 

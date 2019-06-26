@@ -54,10 +54,10 @@ Dctcp::Dctcp(const Dctcp& sock):TcpNewReno(sock)
     m_ceState = (sock.m_ceState);
 }
 
-Dctcp::~Dctcp(void)
-{
-    NS_LOG_FUNCTION(this);
-}
+/* Dctcp::~Dctcp(void) */
+/* { */
+/*     NS_LOG_FUNCTION(this); */
+/* } */
 
 Ptr<TcpCongestionOps> Dctcp::Fork(void)
 {

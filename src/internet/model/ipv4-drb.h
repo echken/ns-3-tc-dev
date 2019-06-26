@@ -1,8 +1,8 @@
 #ifndef IPV4_DRB_H
 #define IPV4_DRB_H
 
-#include "vector.h"
-#include "map.h"
+#include "vector"
+#include "map"
 #include "ns3/object.h"
 #include "ns3/ipv4-address.h"
 

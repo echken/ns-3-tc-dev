@@ -1,25 +1,20 @@
 #include "ipv4-drb-tag.h"
-#include "ns3/log.h"
 
 namespace ns3 {
 Ipv4DrbTag::Ipv4DrbTag() 
 {
-    NS_LOG_FUNCTION(this);
 }
 Ipv4DrbTag::~Ipv4DrbTag() 
 {
-    NS_LOG_FUNCTION(this);
 }
 
 void Ipv4DrbTag::SetOriginalDestAddr(Ipv4Address addr)
 {
-    NS_LOG_FUNCTION(this << addr);
     m_addr = addr;
 }
 
 Ipv4Address Ipv4DrbTag::GetOriginalDestAddr(void) const
 {
-    NS_LOG_FUNCTION(this);
     return m_addr;
 }
 

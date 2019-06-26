@@ -51,7 +51,7 @@ Ipv4GlobalRouting::GetTypeId (void)
  //XXX some kind of ecmp variance, PER-FLOW, ROUND-ROBIN, PER-FLOWLET, and so on.  echken. 
     .AddAttribute("EcmpMode_t", 
                   "Set ECMP mode to control ecmp routing granularity",
-                  EnumValue(ECMP_NONE),
+                  EnumValue(EcmpMode_t::ECMP_NONE),
                   MakeEnumAccessor(&Ipv4GlobalRouting::m_EcmpMode),
                   MakeEnumChecker(EcmpMode_t::ECMP_NONE, "ECMP_NONE",
                                   EcmpMode_t::ECMP_RANDOM, "ECMP_RANDOM",

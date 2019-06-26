@@ -2850,7 +2850,7 @@ TcpSocketBase::ConnectionSucceeded ()
 //TODO. add flowidtags.  echken.  
 
 uint32_t
-TcpSocketBase::Get5TupleFlowHash(const Ipv4Header &header, Ptr<const Packet> packet)
+TcpSocketBase::Get5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION(header);
 
@@ -2915,7 +2915,7 @@ TcpSocketBase::Get5TupleFlowHash(const Ipv4Header &header, Ptr<const Packet> pac
   return hash;
 }
 
-#include "ns3/flow-id-tags.h"
+#include "ns3/flow-id-tag.h"
 void TcpSocketBase::AddFlowId (Ptr<Packet> packet, const Ipv4Address &saddr, const Ipv4Address &daddr, 
                                uint16_t sport, uint16_t dport)
 {
@@ -2925,7 +2925,7 @@ void TcpSocketBase::AddFlowId (Ptr<Packet> packet, const Ipv4Address &saddr, con
 
 #include "ns3/hash.h"
 uint32_t TcpSocketBase::SetFlowId (const Ipv4Address &saddr, const Ipv4Address &daddr, 
-                                   uint16_t sport, uint16_t, dport)
+                                   uint16_t sport, uint16_t dport)
 {
     std::stringstream hash_string;
     hash_string << daddr.Get();
@@ -2934,7 +2934,7 @@ uint32_t TcpSocketBase::SetFlowId (const Ipv4Address &saddr, const Ipv4Address &
     return Hash32 (hash_string.str());
 }
 
-uint32_t TcpSocketBase::GetFlowId (Ptr<const Packet> packet)
+uint32_t TcpSocketBase::GetFlowId (Ptr<Packet> packet)
 {
     uint32_t flowId = 0;
     if (packet == NULL)

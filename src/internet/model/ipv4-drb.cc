@@ -33,7 +33,7 @@ void AddCoreSwitchAddress(Ipv4Address addr)
 void AddCoreSwitchAddress(uint32_t k, Ipv4Address addr)
 {
     NS_LOG_FUNCTION(this << k << addr);
-    for (int i = 0; i < k; i++)
+    for (uint32_t i = 0; i < k; i++)
     {
         m_coreSwitchAddressList.push_back(addr);
     }

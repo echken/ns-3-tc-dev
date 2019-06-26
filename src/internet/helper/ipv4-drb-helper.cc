@@ -1,5 +1,5 @@
 #include "ipv4-drb-helper.h"
-#include "ns3/ipv4-routing-protocol"
+#include "ns3/ipv4-routing-protocol.h"
 #include "ns3/ipv4-list-routing.h"
 #include "ns3/tcp-l4-protocol.h"
 
