@@ -2,7 +2,7 @@
 #define IPV4_DRB_HELPER
 
 #include "ns3/node.h"
-#include "ns3/ipv4-address.h"
+#include "ns3/ipv4.h"
 #include "ns3/ipv4-drb.h"
 
 namespace ns3
@@ -15,7 +15,7 @@ public:
 
   Ipv4DrbHelper *Copy(void) const;
   virtual Ptr<Ipv4Drb> Create(Ptr<Node> node) const;
-  Ptr<Ipv4Drb> GetIpv4Drb(Ptr<ipv4> ipv4) const;
+  Ptr<Ipv4Drb> GetIpv4Drb(Ptr<Ipv4> ipv4) const;
 };
 }
 #endif

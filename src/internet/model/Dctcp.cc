@@ -16,7 +16,7 @@ namespace ns3
 NS_LOG_COMPONENT_DEFINE("Dctcp");
 NS_OBJECT_ENSURE_REGISTERED(Dctcp);
 
-TypeId TcpDctcp::GetTypeId(void)
+TypeId Dctcp::GetTypeId(void)
 {
     static TypeId tid = TypeId ( "ns3::Dctcp" )
         .SetParent<TcpNewReno> ()
@@ -35,7 +35,9 @@ TypeId TcpDctcp::GetTypeId(void)
         ;
     return tid;
 }
-Dctcp::Dctcp():TcpNewReno()
+Dctcp::Dctcp()
+  :TcpNewReno(),
+  m_tsb(0)
 {
     NS_LOG_FUNCTION(this);
     m_delayedAckReserved = false;
@@ -44,43 +46,45 @@ Dctcp::Dctcp():TcpNewReno()
     m_nextWinSeqFlag = false; 
 
     m_ceState = false;
-    m_prioeRcvNxtFlag = false;
+    m_priorRcvNxtFlag = false;
 }
 
-Dctcp::Dctcp(const Dctcp& sock):TcpNewReno(sock)
+Dctcp::Dctcp(const Dctcp& sock)
+  :TcpNewReno(sock),
+  m_tsb(sock.m_tsb)
 {
     NS_LOG_FUNCTION(this);
     m_delayedAckReserved = (sock.m_delayedAckReserved);
     m_ceState = (sock.m_ceState);
 }
 
-/* Dctcp::~Dctcp(void) */
-/* { */
-/*     NS_LOG_FUNCTION(this); */
-/* } */
+Dctcp::~Dctcp(void)
+{
+    NS_LOG_FUNCTION(this);
+}
 
 Ptr<TcpCongestionOps> Dctcp::Fork(void)
 {
     NS_LOG_FUNCTION(this);
     return CopyObject<Dctcp>(this);
 }
-void Dctcp::ReduceCwnd(Ptr<TcpSocketState>)
+void Dctcp::ReduceCwnd(Ptr<TcpSocketState> tcb)
 {
     NS_LOG_FUNCTION(this << tcb);
     uint32_t val = (int)((1 - m_alpha / 2.0) * tcb->m_cWnd);
     //max
-    tcb->m_cWnd = std::max(val, 2 * tcb->m_segementSize);
+    tcb->m_cWnd = std::max(val, 2 * tcb->m_segmentSize);
 }
 
 void Dctcp::PktsAcked(Ptr<TcpSocketState> tcb,
-                      uint32_t segementsAcked,
+                      uint32_t segmentsAcked,
                       const Time &rtt)
 {
-    NS_LOG_FUNCTION(this << tcb << segementsAcked << rtt << m_ackedBytesTotal << m_ackedBytesCongestion << tcb->m_ecnState << m_alpha);
-    m_ackedBytesTotal +=segementsAcked * tcb->m_segmentSize;
-    if(tcb->m_ackedBytesCongestion == TcpSocketState::ECN_CE_RCVD)
+    NS_LOG_FUNCTION(this << tcb << segmentsAcked << rtt << m_ackedBytesTotal << m_ackedBytesCongestion << tcb->m_ecnState << m_alpha);
+    m_ackedBytesTotal +=segmentsAcked * tcb->m_segmentSize;
+    if(tcb->m_ecnState == TcpSocketState::ECN_CE_RCVD)
     {
-        m_ackedBytesCongestion += segementsAcked * tcb->m_segementSize;
+        m_ackedBytesCongestion += segmentsAcked * tcb->m_segmentSize;
     }
     if (tcb->m_lastAckedSeq >= m_nextWinSeq)  // if last received ack num larger than first byte of next window, update parameter
     {
@@ -120,19 +124,19 @@ void Dctcp::CeState0to1(Ptr<TcpSocketState> tcb)
     {
         //next SequenceNumber 
         SequenceNumber32 tmpRcvNxt;
-        tmpRcvNxt = tcb->m_rxBuffer->NextRxSequence();
+        tmpRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
 
         // send ack for previous packet that with ece flags.
-        tcb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt);
-        SendEmptyPacket(TcpHeader::ack);
+        m_tsb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt);
+        m_tsb->SendEmptyPacket(TcpHeader::ACK);
 
         // save practically current rcv_nxt.
-        tcb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt);
+        m_tsb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt);
     }
 
     //this is test file 02:00 am may 27 
     
-    m_priorRcvNxt = tcb->m_rxBuffer->NextRxSequence();
+    m_priorRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
     m_ceState = true;
     tcb->m_ecnState = TcpSocketState::ECN_CE_RCVD;
 }
@@ -143,15 +147,15 @@ void Dctcp::CeState1to0 (Ptr<TcpSocketState> tcb)
     if(m_ceState && m_delayedAckReserved)
     {
         SequenceNumber32 tmpRcvNxt;
-        tmpRcvNxt = tcb->m_rxBuffer->NextRxSequence();
+        tmpRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
 
-        tcb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt);
-        SendEmptyPacket(TcpHeader::ack|TcpHeader::ece);
+        m_tsb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt);
+        m_tsb->SendEmptyPacket(TcpHeader::ACK|TcpHeader::ECE);
 
-        tcb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt);
+        m_tsb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt);
     }
 
-    m_priorRcvNxt = tcb->m_rxBuffer->NextRxSequence();
+    m_priorRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
     m_ceState = false;
     if(tcb->m_ecnState == TcpSocketState::ECN_CE_RCVD || tcb->m_ecnState == TcpSocketState::ECN_SENDING_ECE)
     {
@@ -159,7 +163,7 @@ void Dctcp::CeState1to0 (Ptr<TcpSocketState> tcb)
     }
 }
 
-void UpdateAckReserved(Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCAEvent_t event)
+void Dctcp::UpdateAckReserved(Ptr<TcpSocketState> tcb, const TcpSocketState::TcpCAEvent_t event)
 {
     NS_LOG_FUNCTION(this << tcb << event);
     switch (event)

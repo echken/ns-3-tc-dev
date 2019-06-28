@@ -21,7 +21,7 @@ public:
 
     virtual void Serialize(TagBuffer i) const;
     virtual void Deserialize(TagBuffer i);
-    virtual uint32_t GetSerialziedSize(void) const;
+    virtual uint32_t GetSerializedSize(void) const;
 
     virtual void Print(std::ostream &os) const;
 

@@ -5,7 +5,7 @@ namespace ns3 {
 NS_LOG_COMPONENT_DEFINE("Ipv4Drb");
 NS_OBJECT_ENSURE_REGISTERED(Ipv4Drb);
 
-TypeId GetTypeId(void) 
+TypeId Ipv4Drb::GetTypeId(void) 
 {
    static TypeId tid = TypeId("ns3::Ipv4Drb")
        .SetParent<Object>()
@@ -24,22 +24,22 @@ Ipv4Drb::~Ipv4Drb()
     NS_LOG_FUNCTION(this);
 }
 
-void AddCoreSwitchAddress(Ipv4Address addr)
+void Ipv4Drb::AddCoreSwitchAddress(Ipv4Address addr)
 {
     NS_LOG_FUNCTION(this << addr);
     m_coreSwitchAddressList.push_back(addr);
 }
 
-void AddCoreSwitchAddress(uint32_t k, Ipv4Address addr)
+void Ipv4Drb::AddCoreSwitchAddress(uint32_t k, Ipv4Address addr)
 {
     NS_LOG_FUNCTION(this << k << addr);
     for (uint32_t i = 0; i < k; i++)
     {
-        m_coreSwitchAddressList.push_back(addr);
+      Ipv4Drb::AddCoreSwitchAddress(addr);
     }
 }
 
-Ipv4Address GetCoreSwitchAddress(uint32_t flowId)
+Ipv4Address Ipv4Drb::GetCoreSwitchAddress(uint32_t flowId)
 {
     NS_LOG_FUNCTION(this << flowId);
     
@@ -54,9 +54,9 @@ Ipv4Address GetCoreSwitchAddress(uint32_t flowId)
 
     if(itr != m_indexMap.end())
     {
-        index = itr.second();
+        index = itr->second;
     }
-    Ipv4Address addr m_coreSwitchAddressList[index];
+    Ipv4Address addr = m_coreSwitchAddressList[index];
     m_indexMap[flowId] = (index + 1)%listSize; //update index for next packet/flowcell of flow that have same flowId with current flow.
 
     NS_LOG_DEBUG(this << "index for flow:" << flowId << "is" << index);

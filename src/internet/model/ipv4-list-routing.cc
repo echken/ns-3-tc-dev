@@ -125,6 +125,7 @@ Ipv4ListRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDe
 }
 
 // Patterned after Linux ip_route_input and ip_route_input_slow
+#include "ns3/flow-id-tag.h"
 bool 
 Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev, 
                              UnicastForwardCallback ucb, MulticastForwardCallback mcb, 
@@ -141,10 +142,10 @@ Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<
 
   //DRB alg, echken 
   Ipv4DrbTag ipv4DrbTag;
-  bool founddrbtag = packet->PeekPacketTag(ipv4DrbTag);
+  bool founddrbtag = p->PeekPacketTag(ipv4DrbTag);
 
   FlowIdTag flowIdTag;
-  bool foundflowId = packet->PeekPacketTag(flowIdTag);
+  bool foundflowId = p->PeekPacketTag(flowIdTag);
 
   if(m_drb != 0 && !founddrbtag)
   {
@@ -158,14 +159,14 @@ Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<
           NS_LOG_DEBUG("DRB can't get flowId");
       }
 
-      NS_LOG_DEBUF(this <<"drb enabled packet");
+      NS_LOG_DEBUG("drb enabled packet");
       Ipv4Address address = m_drb->GetCoreSwitchAddress(flowId);
       if(address !Ipv4Address())
       {
           Ipv4DrbTag ipv4DrbTag;
           ipv4DrbTag.SetOriginalDestAddr(header.GetDestination());
           header.SetDestination(address);
-          packet->AddPacketTag(ipv4DrbTag);
+          p->AddPacketTag(ipv4DrbTag);
           NS_LOG_FUNCTION("forwarding the packet to core switch:" << address);
       }
       else

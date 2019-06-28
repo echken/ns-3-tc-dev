@@ -30,6 +30,7 @@
 #include "ns3/node.h"
 #include "ipv4-global-routing.h"
 #include "global-route-manager.h"
+#include "ns3/enum.h"
 
 namespace ns3 {
 
@@ -49,7 +50,7 @@ Ipv4GlobalRouting::GetTypeId (void)
                    MakeBooleanAccessor (&Ipv4GlobalRouting::m_randomEcmpRouting),
                    MakeBooleanChecker ())
  //XXX some kind of ecmp variance, PER-FLOW, ROUND-ROBIN, PER-FLOWLET, and so on.  echken. 
-    .AddAttribute("EcmpMode_t", 
+    .AddAttribute("EcmpMode", 
                   "Set ECMP mode to control ecmp routing granularity",
                   EnumValue(EcmpMode_t::ECMP_NONE),
                   MakeEnumAccessor(&Ipv4GlobalRouting::m_EcmpMode),
@@ -149,7 +150,7 @@ Ipv4GlobalRouting::AddASExternalRouteTo (Ipv4Address network,
 
 
 Ptr<Ipv4Route>
-Ipv4GlobalRouting::LookupGlobal (Ipv4Header header, Ptr<Packet> packet,  Ptr<NetDevice> oif)
+Ipv4GlobalRouting::LookupGlobal (const Ipv4Header &header, Ptr<Packet> packet,  Ptr<NetDevice> oif)
 {
   NS_LOG_FUNCTION (this << dest << oif);
   NS_LOG_LOGIC ("Looking for route for destination " << dest);
