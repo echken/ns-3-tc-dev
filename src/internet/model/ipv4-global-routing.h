@@ -90,7 +90,7 @@ public:
   // These methods inherited from base class
   virtual Ptr<Ipv4Route> RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &sockerr);
 
-  virtual bool RouteInput  (Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
+  virtual bool RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
                             UnicastForwardCallback ucb, MulticastForwardCallback mcb,
                             LocalDeliverCallback lcb, ErrorCallback ecb);
   virtual void NotifyInterfaceUp (uint32_t interface);
@@ -228,10 +228,12 @@ public:
    */
   int64_t AssignStreams (int64_t stream);
 
+  uint32_t Get5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet);
+
   //XXX some kind of ecmp variance, PER-FLOW, ROUND-ROBIN, PER-FLOWLET, and so on.  echken. 
   typedef enum 
   {
-      ECMP_NONE,
+      ECMP_NONE = 0,
       ECMP_RANDOM,
       ECMP_PER_FLOW,
       ECMP_RR,
@@ -244,7 +246,7 @@ protected:
 
 private:
   //XXX some kind of ecmp variance, PER-FLOW, ROUND-ROBIN, PER-FLOWLET, and so on.  echken. 
-  EcmpMode_t m_EcmpMode {EcmpMode_t::ECMP_RANDOM};
+  EcmpMode_t m_EcmpMode {EcmpMode_t::ECMP_NONE};
   uint32_t m_lastInterfaceUsed;
 
   /// Set to true if packets are randomly routed among ECMP; set to false for using only one route consistently

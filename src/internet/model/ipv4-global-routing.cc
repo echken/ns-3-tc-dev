@@ -32,6 +32,11 @@
 #include "global-route-manager.h"
 #include "ns3/enum.h"
 
+#include "ns3/tcp-socket-base.h"
+#include "ns3/hash.h"
+#include "ns3/tcp-header.h"
+#include "ns3/udp-header.h"
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("Ipv4GlobalRouting");
@@ -70,8 +75,8 @@ Ipv4GlobalRouting::GetTypeId (void)
 }
 
 Ipv4GlobalRouting::Ipv4GlobalRouting () 
-  : m_randomEcmpRouting (false),
-    m_EcmpMode(EcmpMode_t::ECMP_NONE), 
+  : m_EcmpMode(EcmpMode_t::ECMP_NONE), 
+    m_randomEcmpRouting (false),
     m_respondToInterfaceEvents (false)
 {
   NS_LOG_FUNCTION (this);
@@ -152,8 +157,8 @@ Ipv4GlobalRouting::AddASExternalRouteTo (Ipv4Address network,
 Ptr<Ipv4Route>
 Ipv4GlobalRouting::LookupGlobal (const Ipv4Header &header, Ptr<Packet> packet,  Ptr<NetDevice> oif)
 {
-  NS_LOG_FUNCTION (this << dest << oif);
-  NS_LOG_LOGIC ("Looking for route for destination " << dest);
+  NS_LOG_FUNCTION (this << oif);
+  NS_LOG_LOGIC ("Looking for route for destination " );
   Ptr<Ipv4Route> rtentry = 0;
   // store all available routes that bring packets to their destination
   typedef std::vector<Ipv4RoutingTableEntry*> RouteVec_t;
@@ -248,11 +253,12 @@ Ipv4GlobalRouting::LookupGlobal (const Ipv4Header &header, Ptr<Packet> packet,  
           case ECMP_NONE:
               selectIndex = 0;
               break;
-          case m_EcmpMode::ECMP_PER_FLOW:
+          case ECMP_PER_FLOW:
               uint32_t flowId;
-              flowId = TcpSocketBase::Get5TupleFlowHash(header, packet);
+              flowId = Get5TupleFlowHash(header, packet);
               selectIndex = flowId % allRoutes.size();
               NS_LOG_LOGIC("Per flow ECMP is enabled");
+              break;
           case ECMP_RR:
               uint32_t nextInterface;
               nextInterface = (m_lastInterfaceUsed + 1) % (allRoutes.size());
@@ -290,6 +296,83 @@ Ipv4GlobalRouting::LookupGlobal (const Ipv4Header &header, Ptr<Packet> packet,  
     }
 }
 
+uint32_t
+Ipv4GlobalRouting::Get5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet)
+{
+  NS_LOG_FUNCTION(header);
+
+  //Ptr<Node> node = ipv4()->GetObject<Node>();
+  //node ID for polarization
+  //uint32_t node_id = node->GetId();
+
+
+  const uint8_t TCP_PROT_NUMBER = 6;
+  const uint8_t UDP_PROT_NUMBER = 17;
+  //uniform variable
+  m_rand = CreateObject<UniformRandomVariable> ();
+  uint32_t m_seed = m_rand->GetInteger (0,(uint32_t)-1);
+
+  //NS_LOG_UNCOND("node " << " " << m_seed);
+
+  //hasher for ecmp
+  Hasher hasher = Hasher();
+
+  hasher.clear();
+  std::ostringstream oss;
+  oss << header.GetSource()
+      << header.GetDestination()
+      << header.GetProtocol()
+      << m_seed;
+
+  switch (header.GetProtocol())
+    {
+  case UDP_PROT_NUMBER:
+    {
+      UdpHeader udpHeader;
+      packet->PeekHeader(udpHeader);
+//      NS_LOG_DEBUG ("FiveTuple() -> UDP: (src, dst, protNb, sPort, dPort) - "
+//          << header.GetSource() << " , "
+//          << header.GetDestination() << " , "
+//          << (int)header.GetProtocol() << " , "
+//          << (int)udpHeader.GetSourcePort () << " , "
+//          << (int)udpHeader.GetDestinationPort ());
+
+      oss << udpHeader.GetSourcePort()
+          << udpHeader.GetDestinationPort();
+
+      break;
+    }
+  case TCP_PROT_NUMBER:
+    {
+      TcpHeader tcpHeader;
+      packet->PeekHeader(tcpHeader);
+//      NS_LOG_DEBUG ("FiveTuple() -> TCP: (src, dst, protNb, sPort, dPort) -  "
+//          << header.GetSource() << " , "
+//          << header.GetDestination() << " , "
+//          << (int)header.GetProtocol() << " , "
+//          << (int)tcpHeader.GetSourcePort () << " , "
+//          << (int)tcpHeader.GetDestinationPort ());
+
+      oss << tcpHeader.GetSourcePort()
+          << tcpHeader.GetDestinationPort();
+
+      break;
+    }
+  default:
+    {
+    	//TODO maybe this brings us problems with other protcols no?
+    	//What about not even doing this... we can hash using just src,dst,proto, id
+      NS_FATAL_ERROR("Udp or Tcp header not found " << (int) header.GetProtocol());
+      break;
+    }
+    }
+
+  std::string data = oss.str();
+  uint32_t hash = hasher.GetHash32(data);
+  oss.str("");
+  //NS_LOG_UNCOND("hash value node: " << node_id << " " << hash << " seed: " << m_seed);
+  return hash;
+}
 uint32_t 
 Ipv4GlobalRouting::GetNRoutes (void) const
 {
@@ -534,12 +617,14 @@ Ipv4GlobalRouting::RouteInput  (Ptr<const Packet> p, const Ipv4Header &header, P
   NS_ASSERT (m_ipv4->GetInterfaceForDevice (idev) >= 0);
   uint32_t iif = m_ipv4->GetInterfaceForDevice (idev);
 
+  Ptr<Packet> packet = ConstCast<Packet> (p);
+
   if (m_ipv4->IsDestinationAddress (header.GetDestination (), iif))
     {
       if (!lcb.IsNull ())
         {
           NS_LOG_LOGIC ("Local delivery to " << header.GetDestination ());
-          lcb (p, header, iif);
+          lcb (packet, header, iif);
           return true;
         }
       else
@@ -557,16 +642,16 @@ Ipv4GlobalRouting::RouteInput  (Ptr<const Packet> p, const Ipv4Header &header, P
   if (m_ipv4->IsForwarding (iif) == false)
     {
       NS_LOG_LOGIC ("Forwarding disabled for this interface");
-      ecb (p, header, Socket::ERROR_NOROUTETOHOST);
+      ecb (packet, header, Socket::ERROR_NOROUTETOHOST);
       return true;
     }
   // Next, try to find a route
   NS_LOG_LOGIC ("Unicast destination- looking up global route");
-  Ptr<Ipv4Route> rtentry = LookupGlobal (header, p);
+  Ptr<Ipv4Route> rtentry = LookupGlobal (header, packet);
   if (rtentry != 0)
     {
       NS_LOG_LOGIC ("Found unicast destination- calling unicast callback");
-      ucb (rtentry, p, header);
+      ucb (rtentry, packet, header);
       return true;
     }
   else

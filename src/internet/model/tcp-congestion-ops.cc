@@ -48,6 +48,10 @@ TcpCongestionOps::~TcpCongestionOps ()
 {
 }
 
+void TcpCongestionOps::SendEmptyPacket(Ptr<TcpSocketBase> socket, uint32_t flags)
+{
+  socket->SendEmptyPacket(flags);
+}
 
 // RENO
 

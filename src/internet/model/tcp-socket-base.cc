@@ -59,6 +59,11 @@
 #include "tcp-congestion-ops.h"
 #include "tcp-recovery-ops.h"
 
+#include "ns3/udp-header.h"
+#include "ns3/flow-id-tag.h"
+#include "ns3/hash.h"
+#include "ns3/random-variable-stream.h"
+
 #include <math.h>
 #include <algorithm>
 
@@ -2848,15 +2853,32 @@ TcpSocketBase::ConnectionSucceeded ()
 }
 
 //TODO. add flowidtags.  echken.  
+void TcpSocketBase::Add5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet)
+{
+  uint32_t flowId = Cal5TupleFlowHash(header, packet);
+  packet->AddPacketTag(FlowIdTag(flowId));
+}
 
-uint32_t
-TcpSocketBase::Get5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet)
+uint32_t TcpSocketBase::Cal5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION(header);
 
-  Ptr<Node> node = m_ipv4->GetObject<Node>();
+  //Ptr<Node> node = ipv4()->GetObject<Node>();
   //node ID for polarization
   //uint32_t node_id = node->GetId();
+
+
+  const uint8_t TCP_PROT_NUMBER = 6;
+  const uint8_t UDP_PROT_NUMBER = 17;
+  //uniform variable
+  Ptr<UniformRandomVariable> m_rand;
+  m_rand = CreateObject<UniformRandomVariable> ();
+  uint32_t m_seed = m_rand->GetInteger (0,(uint32_t)-1);
+
+  //NS_LOG_UNCOND("node " << " " << m_seed);
+
+  //hasher for ecmp
+  Hasher hasher = Hasher();
 
   hasher.clear();
   std::ostringstream oss;
@@ -2915,16 +2937,15 @@ TcpSocketBase::Get5TupleFlowHash(const Ipv4Header &header, Ptr<Packet> packet)
   return hash;
 }
 
-#include "ns3/flow-id-tag.h"
 void TcpSocketBase::AddFlowId (Ptr<Packet> packet, const Ipv4Address &saddr, const Ipv4Address &daddr, 
                                uint16_t sport, uint16_t dport)
 {
-    uint32_t flowId = TcpSocketBase::SetFlowId(saddr, daddr, sport, dport);
+    //add dest flow hash.
+    uint32_t flowId = CalFlowId(saddr, daddr, sport, dport);
     packet->AddPacketTag(FlowIdTag(flowId));
 }
 
-#include "ns3/hash.h"
-uint32_t TcpSocketBase::SetFlowId (const Ipv4Address &saddr, const Ipv4Address &daddr, 
+uint32_t TcpSocketBase::CalFlowId (const Ipv4Address &saddr, const Ipv4Address &daddr, 
                                    uint16_t sport, uint16_t dport)
 {
     std::stringstream hash_string;
@@ -2944,7 +2965,7 @@ uint32_t TcpSocketBase::GetFlowId (Ptr<Packet> packet)
     else 
     {
         FlowIdTag flowIdTag;
-        if(packet->PeekPacketTag(flowIdTag));
+        if(packet->PeekPacketTag(flowIdTag))
         {
             flowId = flowIdTag.GetFlowId();
         }

@@ -23,6 +23,7 @@
 
 namespace ns3 {
 
+class TcpSocketBase;
 /**
  * \ingroup tcp
  * \defgroup congestionOps Congestion Control Algorithms.
@@ -167,6 +168,8 @@ public:
    * \return a pointer of the copied object
    */
   virtual Ptr<TcpCongestionOps> Fork () = 0;
+
+  virtual void SendEmptyPacket(Ptr<TcpSocketBase> socket, uint32_t flags);
 };
 
 /**

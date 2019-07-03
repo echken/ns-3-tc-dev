@@ -50,7 +50,7 @@ PrintPayload ( Ptr< const Packet > p)
 void
 CheckQueueSize (Ptr<QueueDisc> queue, std::string filePlotQueue)
 {
-  uint32_t qSize = StaticCast<RedQueueDisc> (queue)->GetQueueSize ();
+  uint32_t qSize = queue->GetCurrentSize().GetValue();
 
   // check queue size every 1/100 of a second
   Simulator::Schedule (Seconds (0.01), &CheckQueueSize, queue, filePlotQueue);
@@ -103,8 +103,9 @@ int main (int argc, char *argv[])
   GlobalValue::Bind ("ChecksumEnabled", BooleanValue (false));
 
   uint32_t meanPktSize = 1000;
-
-  Config::SetDefault ("ns3::RedQueueDisc::Mode", StringValue ("QUEUE_DISC_MODE_PACKETS"));
+  
+  //remove queue_disc_mode_packets in ns-3.29 echken.
+  /* Config::SetDefault ("ns3::RedQueueDisc::Mode", StringValue ("QUEUE_DISC_MODE_PACKETS")); */
   Config::SetDefault ("ns3::RedQueueDisc::MeanPktSize", UintegerValue (meanPktSize));
 
   // DCTCP tracks instantaneous queue length only; so set QW = 1
@@ -112,7 +113,12 @@ int main (int argc, char *argv[])
 
   // Triumph and Scorpion switches used in DCTCP Paper have 4 MB of buffer
   // If every packet is 1000 bytes, 4195 packets can be stored in 4 MB
-  Config::SetDefault ("ns3::RedQueueDisc::QueueLimit", UintegerValue (4195));
+  /* Config::SetDefault ("ns3::RedQueueDisc::QueueLimit", UintegerValue (4195)); */
+  //XXX. use Maxsize instead of QueueLimit, echken 
+  uint32_t QueueDiscSize = 4195;
+  Config::SetDefault("ns3::RedQueueDisc::Maxsize", QueueSizeValue(QueueSize(QueueSizeUnit::PACKETS, QueueDiscSize)));
+  //or
+  /* Config::SetDefault("ns3::RedQueueDisc::Maxsize", StringValue("4195p")); */
 
   // MinTh = MaxTh = 17% of QueueLimit as recommended in ACM SIGCOMM 2010 DCTCP Paper
   Config::SetDefault ("ns3::RedQueueDisc::MinTh", DoubleValue (713));

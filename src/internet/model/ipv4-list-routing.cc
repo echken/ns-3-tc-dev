@@ -17,14 +17,15 @@
  *
  */
 
-#include "ns3/log.h"
 #include "ns3/ipv4.h"
 #include "ns3/ipv4-route.h"
 #include "ns3/node.h"
 #include "ns3/ipv4-static-routing.h"
 #include "ipv4-list-routing.h"
 #include "ipv4-drb-tag.h"
+#include "ns3/log.h"
 
+#include "ns3/flow-id-tag.h"
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("Ipv4ListRouting");
@@ -125,7 +126,6 @@ Ipv4ListRouting::RouteOutput (Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDe
 }
 
 // Patterned after Linux ip_route_input and ip_route_input_slow
-#include "ns3/flow-id-tag.h"
 bool 
 Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev, 
                              UnicastForwardCallback ucb, MulticastForwardCallback mcb, 
@@ -139,6 +139,7 @@ Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<
   // Check if input device supports IP 
   NS_ASSERT (m_ipv4->GetInterfaceForDevice (idev) >= 0);
   uint32_t iif = m_ipv4->GetInterfaceForDevice (idev); 
+  Ipv4Header ipHeader = header;
 
   //DRB alg, echken 
   Ipv4DrbTag ipv4DrbTag;
@@ -161,11 +162,11 @@ Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<
 
       NS_LOG_DEBUG("drb enabled packet");
       Ipv4Address address = m_drb->GetCoreSwitchAddress(flowId);
-      if(address !Ipv4Address())
+      if(address != Ipv4Address())
       {
           Ipv4DrbTag ipv4DrbTag;
           ipv4DrbTag.SetOriginalDestAddr(header.GetDestination());
-          header.SetDestination(address);
+          ipHeader.SetDestination(address);
           p->AddPacketTag(ipv4DrbTag);
           NS_LOG_FUNCTION("forwarding the packet to core switch:" << address);
       }
@@ -179,11 +180,12 @@ Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<
   retVal = m_ipv4->IsDestinationAddress (header.GetDestination (), iif);
   if (retVal == true)
     {
-        //DRB, for intermediate core switch to extract original end to end destination address. echken 
+        //DRB, for intermediate core switch to extract original end to end destination address from drbtag and set
+        //ipheader to that value. echken 
         if(founddrbtag && !m_ipv4->IsDestinationAddress(ipv4DrbTag.GetOriginalDestAddr(), iif))
         {
             Ipv4Address originalDestAddr =ipv4DrbTag.GetOriginalDestAddr();
-            header.SetDestination(originalDestAddr);
+            ipHeader.SetDestination(originalDestAddr);
             NS_LOG_DEBUG("core switch receive packet, bounce to original address:" << originalDestAddr);
         }
         else
@@ -223,7 +225,7 @@ Ipv4ListRouting::RouteInput (Ptr<const Packet> p, const Ipv4Header &header, Ptr<
        rprotoIter != m_routingProtocols.end ();
        rprotoIter++)
     {
-      if ((*rprotoIter).second->RouteInput (p, header, idev, ucb, mcb, downstreamLcb, ecb))
+      if ((*rprotoIter).second->RouteInput (p, ipHeader, idev, ucb, mcb, downstreamLcb, ecb))
         {
           NS_LOG_LOGIC ("Route found to forward packet in protocol " << (*rprotoIter).second->GetInstanceTypeId ().GetName ()); 
           return true;
@@ -343,6 +345,14 @@ Ipv4ListRouting::Compare (const Ipv4RoutingProtocolEntry& a, const Ipv4RoutingPr
   return a.first > b.first;
 }
 
+void Ipv4ListRouting::SetDrb(Ptr<Ipv4Drb> drb)
+{
+  m_drb = drb;
+}
 
+Ptr<Ipv4Drb> Ipv4ListRouting::GetDrb()
+{
+  return m_drb;
+}
 } // namespace ns3
 

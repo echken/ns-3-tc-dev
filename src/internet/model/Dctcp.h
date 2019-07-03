@@ -2,10 +2,9 @@
 #define TCP_DCTCP_H
 
 #include "ns3/tcp-congestion-ops.h"
-#include "ns3/tcp-socket-base.h"
+#include "tcp-socket-base.h"
 
 namespace ns3 {
-
 class Dctcp : public TcpNewReno
 {
 public:
@@ -13,6 +12,9 @@ public:
     Dctcp();
     Dctcp(const Dctcp& sock);
     virtual ~Dctcp(void);
+
+    virtual Ptr<TcpSocketBase> GetSocketBase(void);
+    virtual void SetSocketBase(Ptr<TcpSocketBase> tsb);
 
     virtual std::string GetName() const;
     virtual Ptr<TcpCongestionOps> Fork();
@@ -30,7 +32,7 @@ public:
 
 private:
     void UpdateAckReserved(Ptr<TcpSocketState> tcb,
-                          const TcpSocketState::TcpCAEvent_t);
+                          const TcpSocketState::TcpCAEvent_t event);
 
     void SetDctcpAlpha(double alpha);
     void Reset(Ptr<TcpSocketState> tcb);

@@ -6,10 +6,12 @@
 #include "ns3/abort.h"
 #include "ns3/node.h"
 #include "math.h"
-#include "ns3/tcp-socket-base.h"
+#include "tcp-socket-base.h"
 #include "ns3/sequence-number.h"
 #include "ns3/double.h"
 #include "ns3/nstime.h"
+
+#include "ns3/tcp-rx-buffer.h"
 
 namespace ns3
 {
@@ -63,11 +65,27 @@ Dctcp::~Dctcp(void)
     NS_LOG_FUNCTION(this);
 }
 
+std::string Dctcp::GetName() const
+{
+  return "Dctcp";
+}
+
 Ptr<TcpCongestionOps> Dctcp::Fork(void)
 {
     NS_LOG_FUNCTION(this);
     return CopyObject<Dctcp>(this);
 }
+
+Ptr<TcpSocketBase> Dctcp::GetSocketBase(void)
+{
+  return m_tsb;
+}
+
+void Dctcp::SetSocketBase(Ptr<TcpSocketBase> tsb)
+{
+  m_tsb = tsb;
+}
+
 void Dctcp::ReduceCwnd(Ptr<TcpSocketState> tcb)
 {
     NS_LOG_FUNCTION(this << tcb);
@@ -116,7 +134,6 @@ void Dctcp::Reset(Ptr<TcpSocketState> tcb)
     m_ackedBytesCongestion = 0;
     m_ackedBytesTotal = 0;
 }
-
 void Dctcp::CeState0to1(Ptr<TcpSocketState> tcb)
 {
     NS_LOG_FUNCTION(this << tcb);
@@ -124,19 +141,24 @@ void Dctcp::CeState0to1(Ptr<TcpSocketState> tcb)
     {
         //next SequenceNumber 
         SequenceNumber32 tmpRcvNxt;
-        tmpRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
+        /* tmpRcvNxt = m_tsb->m_rxBuffer->NextRxSequence(); */
+        tmpRcvNxt = m_tsb->GetRxBuffer()->NextRxSequence();
 
         // send ack for previous packet that with ece flags.
-        m_tsb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt);
-        m_tsb->SendEmptyPacket(TcpHeader::ACK);
+        /* m_tsb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt); */
+        m_tsb->GetRxBuffer()->SetNextRxSequence(m_priorRcvNxt);
+        /* m_tsb->SendEmptyPacket(TcpHeader::ACK); */
+        SendEmptyPacket(m_tsb, TcpHeader::ACK);
 
         // save practically current rcv_nxt.
-        m_tsb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt);
+        /* m_tsb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt); */
+        m_tsb->GetRxBuffer()->SetNextRxSequence(tmpRcvNxt);
     }
 
     //this is test file 02:00 am may 27 
     
-    m_priorRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
+    /* m_priorRcvNxt = m_tsb->m_rxBuffer->NextRxSequence(); */
+    m_priorRcvNxt = m_tsb->GetRxBuffer()->NextRxSequence();
     m_ceState = true;
     tcb->m_ecnState = TcpSocketState::ECN_CE_RCVD;
 }
@@ -147,15 +169,19 @@ void Dctcp::CeState1to0 (Ptr<TcpSocketState> tcb)
     if(m_ceState && m_delayedAckReserved)
     {
         SequenceNumber32 tmpRcvNxt;
-        tmpRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
+        /* tmpRcvNxt = m_tsb->m_rxBuffer->NextRxSequence(); */
+        tmpRcvNxt = m_tsb->GetRxBuffer()->NextRxSequence();
 
-        m_tsb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt);
-        m_tsb->SendEmptyPacket(TcpHeader::ACK|TcpHeader::ECE);
+        /* m_tsb->m_rxBuffer->SetNextRxSequence(m_priorRcvNxt); */
+        m_tsb->GetRxBuffer()->SetNextRxSequence(m_priorRcvNxt);
+        SendEmptyPacket(m_tsb, TcpHeader::ACK|TcpHeader::ECE);
 
-        m_tsb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt);
+        /* m_tsb->m_rxBuffer->SetNextRxSequence(tmpRcvNxt); */
+        m_tsb->GetRxBuffer()->SetNextRxSequence(tmpRcvNxt);
     }
 
-    m_priorRcvNxt = m_tsb->m_rxBuffer->NextRxSequence();
+    /* m_priorRcvNxt = m_tsb->m_rxBuffer->NextRxSequence(); */
+    m_priorRcvNxt = m_tsb->GetRxBuffer()->NextRxSequence();
     m_ceState = false;
     if(tcb->m_ecnState == TcpSocketState::ECN_CE_RCVD || tcb->m_ecnState == TcpSocketState::ECN_SENDING_ECE)
     {
@@ -179,6 +205,9 @@ void Dctcp::UpdateAckReserved(Ptr<TcpSocketState> tcb, const TcpSocketState::Tcp
         {
             m_delayedAckReserved = false;
         }
+        break;
+    default:
+        //log error
         break;
     }
 }
