@@ -31,6 +31,7 @@ public:
 
   //>>>??
   virtual void SetIpv4(Ptr<Ipv4> ipv4);
+  void SetTorId(uint32_t torId);
   void SetPathUpdateInterval(Time pathUpdateInterval);
   void SetLatestPathUtilUpdateTime(Time latestUpdateTime);
 
@@ -48,11 +49,13 @@ public:
                             UnicastForwardCallback ucb, MulticastForwardCallback mcb, LocalDeliverCallback lcb,
                             ErrorCallback ecb);
 
-
-
 private:
   Ptr<Ipv4> m_ipv4;
+  bool m_isTor;
+  uint32_t m_torId;
+
   Time m_flowletTimeOut;
+  Time m_pathFailureTimeOut;
 
   //processing probe packet && linkutil measurement:
   Time m_pathUpdateIterval;   // link util update cycle
@@ -60,10 +63,17 @@ private:
   std::map<uint32_t, std::pair<Time, uint32_t>> m_outputLinkUtilMap; //<interface, <udpateTime, outputlinkUtil>>
   std::map<uint32_t, uint32_t> m_outputTrafficMap;  //<interface, outputTrafficRegister>
   
-  //pathutil statistics 
-  std::map<uint32_t, std::pair<uint32_t, uint32_t>> m_hulaPathUtilTable;  // <destTorId, <nextHop, pathUtil>>
+  //pathutil statistics, at each hop, save the next hop to reach each dest. 
+  /* std::map<uint32_t, std::pair<Time, std::pair<uint32_t, uint32_t>>> m_hulaPathUtilTable;  // <destTorId, <nextHop, pathUtil>> */
 
-  //bestnexthop table
+  std::map<uint32_t, HulaPathUtilInfo> m_hulaPathUtilTable;
+  struct HulaPathUtilInfo{
+    uint32_t pathUtil;
+    uint32_t interface;
+    Time updateTime;
+  };
+
+  //bestnexthop table, at each hop, for each flow
   std::map<uint32_t, uint32_t> m_hulaBestPathTable;   //<flowletId, nextHop>
 };
 
