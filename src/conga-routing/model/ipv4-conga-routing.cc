@@ -313,6 +313,7 @@ bool Ipv4CongaRouting::RouteInput(Ptr<const Packet> packet, const Ipv4Header &he
       {
         flowlet = flowletItr->second;
         uint32_t selectPort = 0;
+        //TODO  get seconds() or microseconds 
         Time flowGapTime = now - flowlet.activeTime;
 
         //other method to decide whether flowlet is exists.TODO

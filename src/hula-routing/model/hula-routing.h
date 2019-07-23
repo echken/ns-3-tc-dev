@@ -13,7 +13,12 @@
 
 namespace ns3 {
 
-/* ... */
+struct Ipv4HulaRouteEntry{
+  Ipv4Address network;
+  Ipv4Mask networkMask;
+  uint32_t port;
+}
+
 class Ipv4HulaRouting : public Ipv4RoutingProtocol {
 public:
   static TypeId GetTypeId(void);
@@ -32,28 +37,47 @@ public:
   //>>>??
   virtual void SetIpv4(Ptr<Ipv4> ipv4);
   void SetTorId(uint32_t torId);
+  void AddAddressToTorIdMap(Ipv4Address ipv4Address, uint32_t torId);
+  
+  void SetSwitchRole(SwitchRole role);
+  uint32_t GetSwitchRole() const;
+  uint32_t GetDirection(Ptr<Packet> packet);
+
   void SetPathUpdateInterval(Time pathUpdateInterval);
   void SetLatestPathUtilUpdateTime(Time latestUpdateTime);
 
   //processing probe packet && linkutil measurement:
   uint32_t UpdateOutputTraffic(const Ipv4Header header&, Ptr<Packet> p, uint32_t port);
   void UpdateOutputTrafficEvent(); 
+  void OutputLinkUtilUpdate(const Ipv4Header &header, Ptr<Packet> packet, uint32_t port);
 
   //route 
   //1. if probe packet
   //  a). udpate hulaPathUtilTable and hulaBestNextHopTable
   //2. if normal packet:
   //  a). flowlet detect and route
-  Ptr<Ipv4Route> RouteOutput(Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &SocketErrno);
-  bool RouteInput(Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
+  Ptr<Ipv4Route> ConstructIpv4HulaRoute(uint32_t port, Ipv4Address destAddress);
+  void AddRoute(Ipv4Address network, Ipv4Mask networkMask, uint32_t port);
+
+  virtual Ptr<Ipv4Route> RouteOutput(Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &SocketErrno);
+  virtual bool RouteInput(Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
                             UnicastForwardCallback ucb, MulticastForwardCallback mcb, LocalDeliverCallback lcb,
                             ErrorCallback ecb);
+
+  void SetProbeMulticastGroup(Ipv4Address multicastAddress, std::vector<uint32_t> outputInterfaceSet);
+  std::vector<uint32_t> GetProbeMulticastGroup(Ipv4Address multicastAddress);
+  void SetProbeMulticastInterface(Ipv4Address multicastAddress, uint32_t interface);
 
 private:
   Ptr<Ipv4> m_ipv4;
   bool m_isTor;
   uint32_t m_torId;
 
+  std::map<Ipv4Address, uint32_t> m_addressToTorIdMap;
+  std::map<uint32_t, std::vector<uint32_t>> m_torToUpstreamInterfaceMap; // control plane set up 
+
+  std::map<Ipv4Address, std::vector<uint32_t>> m_porbeMulticastTable;  //<multicastAddress, vector<outputInterface>>
+  
   Time m_flowletTimeOut;
   Time m_pathFailureTimeOut;
 
@@ -74,7 +98,21 @@ private:
   };
 
   //bestnexthop table, at each hop, for each flow
-  std::map<uint32_t, uint32_t> m_hulaBestPathTable;   //<flowletId, nextHop>
+  std::map<uint32_t, FlowletInfo*> m_hulaBestPathTable;   //<flowletId, nextHop>
+  struct FlowletInfo{
+    uint32_t interface;
+    Time updateTime;
+  }
+
+  enum SwitchRole{
+    HULA_NONE = 0;
+    HULA_TOR;
+    HULA_AGGREGATE;
+    HULA_SPINE;
+  };
+
+  SwitchRole m_switchRole{SwitchRole::HULA_NONE};
+  std::vector<Ipv4HulaRouteEntry> m_hulaRouteEntryList;
 };
 
 }

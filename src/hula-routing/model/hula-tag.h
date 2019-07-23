@@ -15,8 +15,22 @@ public:
   ~Ipv4HulaTag();
 
   void SetMaxPathUtil(uint32_t newMaxPathUtil);
+  uint32_t GetMaxPathUtil(void) const;
+
+  void SetTorId(uint32_t torId);
+  uint32_t GetTorId(void) const;
+
   void SetProbeDestAddress(Ipv4Address destAddress);
+  Ipv4Address GetProbeDestAddress(void) const;
+  
   void SetOutputInterface(uint32_t outputInterface);
+  uint32_t GetOutputInterface(void) const;
+
+  void SetDirection(uint32_t direction);
+  uint32_t GetDirection(void) const;
+
+  void SetSwitchRole(uint32_t role);
+  uint32_t GetSwitchRole(void) const;
 
   //inherient from base class
   virtual void Serialize(TagBuffer i) const;
@@ -26,8 +40,12 @@ public:
 
 private:
   uint32_t m_maxPathUtil;  // quantilized path util to specific bit string.
+  uint32_t m_torId;
   Ipv4Address m_probeDstAddress;  // probe dest 
-  uint32_t m_outputInterface;  // send probe from this interface 
+  uint32_t m_outputInterface;  // send probe from it  
+
+  uint32_t m_direction;
+  uint32_t m_switchRole;
 
 };
 

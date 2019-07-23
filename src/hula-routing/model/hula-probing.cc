@@ -67,6 +67,9 @@ void Ipv4HulaProbing::DoStartProbe()
   //for all avaliable output interface of tor switch,  send probing packet periodically.
   uint32_t interfaceCount = 32;
 
+  //TODO 
+  //1. server/hypervisor probe, or
+  //2. tor switch probe
   for(uint32_t i = 0; i < interfaceCount; i++)
   {
     Ipv4HulaProbing::SendProbe(i);
@@ -94,6 +97,7 @@ void Ipv4HulaProbing::SendProbe(uint32_t interface)
   Ipv4HulaTag ipv4HulaTag;
   ipv4HulaTag.SetOutputInterface(interface);
   ipv4HulaTag.SetMaxPathUtil(0);
+  ipv4HulaTag.SetDirection(0);
   ipv4HulaTag.SetProbeDestAddress(m_probeDstAddress);
 
   packet->AddPacketTag(ipv4HulaTag);
