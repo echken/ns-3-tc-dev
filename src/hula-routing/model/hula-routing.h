@@ -58,6 +58,9 @@ public:
   //  a). flowlet detect and route
   Ptr<Ipv4Route> ConstructIpv4HulaRoute(uint32_t port, Ipv4Address destAddress);
   void AddRoute(Ipv4Address network, Ipv4Mask networkMask, uint32_t port);
+  //TODO add multicat route table for setup  probe routing path 
+  void AddMulticastRoute(Ipv4Address origin, Ipv4Address group, uint32_t inputInterface, 
+                         std::vector<uint32_t> outputInterfaces);
 
   virtual Ptr<Ipv4Route> RouteOutput(Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &SocketErrno);
   virtual bool RouteInput(Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
@@ -65,8 +68,10 @@ public:
                             ErrorCallback ecb);
 
   void SetProbeMulticastGroup(Ipv4Address multicastAddress, std::vector<uint32_t> outputInterfaceSet);
-  std::vector<uint32_t> GetProbeMulticastGroup(Ipv4Address multicastAddress);
   void SetProbeMulticastInterface(Ipv4Address multicastAddress, uint32_t interface);
+  std::vector<uint32_t> GetProbeMulticastGroup(Ipv4Address multicastAddress);
+
+  std::vector<uint32_t> LookUpMulticastGroup(Ipv4Address probeAddress);
 
 private:
   Ptr<Ipv4> m_ipv4;
@@ -74,7 +79,7 @@ private:
   uint32_t m_torId;
 
   std::map<Ipv4Address, uint32_t> m_addressToTorIdMap;
-  std::map<uint32_t, std::vector<uint32_t>> m_torToUpstreamInterfaceMap; // control plane set up 
+  /* std::map<uint32_t, std::vector<uint32_t>> m_torToUpstreamInterfaceMap; // control plane set up */ 
 
   std::map<Ipv4Address, std::vector<uint32_t>> m_porbeMulticastTable;  //<multicastAddress, vector<outputInterface>>
   

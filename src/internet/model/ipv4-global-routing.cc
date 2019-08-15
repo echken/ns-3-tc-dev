@@ -241,9 +241,9 @@ Ipv4GlobalRouting::LookupGlobal (const Ipv4Header &header, Ptr<Packet> packet,  
       // consistently if random ECMP routing is disabled
       uint32_t selectIndex;
       if (m_randomEcmpRouting)
-        {
-          selectIndex = m_rand->GetInteger (0, allRoutes.size ()-1);
-        }
+      {
+        selectIndex = m_rand->GetInteger (0, allRoutes.size ()-1);
+      }
       //TODO for implement serveral granularity routing alg. echken. 
       //
       else if(allRoutes.size() > 1)
@@ -276,9 +276,9 @@ Ipv4GlobalRouting::LookupGlobal (const Ipv4Header &header, Ptr<Packet> packet,  
           }
       }
       else 
-        {
-          selectIndex = 0;
-        }
+      {
+        selectIndex = 0;
+      }
       Ipv4RoutingTableEntry* route = allRoutes.at (selectIndex); 
       // create a Ipv4Route object from the selected routing table entry
       rtentry = Create<Ipv4Route> ();

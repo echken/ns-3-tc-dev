@@ -1,6 +1,7 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 
 #include "hula-routing.h"
+#include "hula-probing.h"
 #include "hula-tag.h"
 
 #include "ns3/ipv4.h"
@@ -239,9 +240,19 @@ void Ipv4HulaRouting::AddRoute(Ipv4Address network, Ipv4Mask networkMask, uint32
 
 Ptr<Ipv4Route> Ipv4HulaRouting::RouteOutput(Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &socketError)
 {
-  //TODO, tor switch send probe packet.
+  //TODO, tor switch send probe packet periodicaly.
   // datapath: routeoutput -----> routeinput
+  if(m_isTor)
+  {
+    
+  }
   return 0;
+}
+
+std::vector<uint32_t> Ipv4HulaRouting::LookUpMulticastGroup(Ipv4Address probeAddress)
+{
+  std::map<Ipv4Address>::iterator probeMulticastItr = m_probeMulticastTable.find(probeAddress);
+  return probeMulticastItr->second;
 }
 
 bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, Ptr<NetDevice> idev,
@@ -262,6 +273,8 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
     NS_LOG_ERROR(this << "can't find flowidtag");
   }
   uint32_t flowId = flowIdTag.GetflowId();
+
+  uint32_t selectedPort = 0;
 
   //1. tor switch:
   //  a). src tor
@@ -286,18 +299,18 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
       if(!isFoundHulaTag)
       {
         // 1.a).i) src tor && normal packet
-        
-        uint32_t selectedPort = 0;
 
         //1. flowlet was found
-        //  1> flowlet == NULL
-        //  2> flowlet != NULL && flowlet was not timeout
-        //  3> flowlet != NULL && flowlet was timeout
-        
+        //2. flowlet was not found
         struct FlowletInfo *flowletInfo = NULL;
         std::map<uint32_t, struct FlowletInfo*>::iterator bestHopItr = m_hulaBestPathTable.find(flowId);
         if(bestHopItr != m_hulaBestPathTable.end())
         {
+          //1. flowlet was found
+          
+          //  1> flowlet == NULL
+          //  2> flowlet != NULL && flowlet was not timeout
+          //  3> flowlet != NULL && flowlet was timeout
           flowletInfo = bestHopItr->second;
 
           if(flowletInfo == NULL)
@@ -341,10 +354,10 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
 
             return true;
           }
-        } // end bestHopItr != m_bestHopTable.end();
+        } // end flowlet was found 
         else
         {
-          // flowlet was not found. 
+          // 2. flowlet was not found. 
           std::map<uint32_t, HulaPathUtilInfo>::iterator pathUtilItr = m_hulaPathUtilTable.find(destTorId);
           if(pathUtilItr != m_hulaPathUtilTable.end())
           {
@@ -365,7 +378,7 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
           return true;
         }
 
-      } // end normal packet 
+      } // end 1.a).i) normal packet 
       else
       {
         // 1.a).ii) src tor && probe packet
@@ -469,13 +482,92 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
       }
 
       //TODO.  lookup multicast route table for route probe packet out
-    }
+    } //end 2.a) non-tor && probe packet
     else
     {
       // 2.b). non-tor && normal packet
-    }
+      
+      
+      //1. flowlet already found 
+      //2. flowlet is not found
 
+      struct FlowletInfo *flowletInfo = NULL;
+      std::map<uint32_t, struct FlowletInfo*>::iterator bestHopItr = m_hulaBestPathTable.find(flowId);
+      if(bestHopItr != m_hulaBestPathTable.end())
+      {
+        flowletInfo = bestHopItr->second;
+
+        //1. flowlet was found
+        //  1> flowlet == NULL
+        //  2> flowlet != NULL && flowlet was not timeout
+        //  3> flowlet != NULL && flowlet was timeout
+        if(flowletInfo == NULL)
+        {
+          //1.1> not the normal case 
+          NS_LOG_ERROR(this << "error");
+        }
+
+        Time flowletGap = Simulator::Now().GetMicroSeconds() - flowletInfo->updateTime.GetMicroSeconds();
+        if(flowletInfo != NULL
+           && flowletGap < m_flowletTimeOut.GetMicroSeconds())
+        {
+          //1.2> 
+          selectedPort = flowletInfo->interface;
+          flowletInfo->updateTime = Simulator::Now();
+
+          //update tx linkUtil metric estimator of selectedPort.
+          Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
+          Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
+          ucb(route, packet, header);
+          NS_LOG_LOGIC(this << " route packet out");
+
+          return true;
+        }
+
+        if(flowletInfo != NULL &&
+           flowletGap > m_flowletTimeOut.GetMicroSeconds())
+        {
+          //1.3> re-select output interface ??
+          std::map<uint32_t, HulaPathUtilInfo>::iterator pathUtilItr = m_hulaPathUtilTable.find(destTorId);
+          selectedPort = (pathUtilItr->second).interface;
+
+          //switch to current best nexthop
+          flowletInfo->interface = selectedPort;
+          flowletInfo->updateTime = Simulator::Now();
+
+          Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
+          Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
+          ucb(route, packet, header);
+          NS_LOG_LOGIC(this << "route packet out");
+
+          return true;
+        }
+      } // end bestHopItr != m_bestHopTable.end();
+      else
+      {
+        // 2. flowlet was not found. 
+        std::map<uint32_t, HulaPathUtilInfo>::iterator pathUtilItr = m_hulaPathUtilTable.find(destTorId);
+        if(pathUtilItr != m_hulaPathUtilTable.end())
+        {
+          selectedPort = (pathUtilItr->second).interface; 
+        }
+
+        //insert newly arrival flowlet to besthop table
+        struct FlowletInfo *flowletInfo = new FlowletInfo;
+        flowletInfo->interface = selectedPort;
+        flowletInfo->updateTime = Simulator::Now();
+        m_hulaBestPathTable[flowId] = flowletInfo;
+
+        Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
+        Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
+        ucb(route, packet, header);
+        NS_LOG_LOGIC(this << "route packet out");
+
+        return true;
+      }
+    } //end 2.b) non-tor && normal packet 
   } // end non-tor switch 
+
 }
 
 void Ipv4HulaRouting::SetProbeMulticastGroup(Ipv4Address multicastAddress, std::vector<uint32_t> outputInterfaceSet)
