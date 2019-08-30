@@ -10,8 +10,11 @@
 #include <algorithm>
 #include <vector>
 #include <map>
+#include "ns3/ipv4-routing-table-entry.h"
 
 namespace ns3 {
+
+class Ipv4MulticastRoutingTableEntry;
 
 struct Ipv4HulaRouteEntry{
   Ipv4Address network;
@@ -62,6 +65,9 @@ public:
   void AddMulticastRoute(Ipv4Address origin, Ipv4Address group, uint32_t inputInterface, 
                          std::vector<uint32_t> outputInterfaces);
 
+  Ipv4MulticastRoutingTableEntry GetMulticastRoute(uint32_t index) const;
+  Ptr<Ipv4MulticastRoute> LookupMulticastRoute(Ipv4Address origin, Ipv4Address group, uint32_t interface);
+
   virtual Ptr<Ipv4Route> RouteOutput(Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &SocketErrno);
   virtual bool RouteInput(Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
                             UnicastForwardCallback ucb, MulticastForwardCallback mcb, LocalDeliverCallback lcb,
@@ -70,13 +76,17 @@ public:
   void SetProbeMulticastGroup(Ipv4Address multicastAddress, std::vector<uint32_t> outputInterfaceSet);
   void SetProbeMulticastInterface(Ipv4Address multicastAddress, uint32_t interface);
   std::vector<uint32_t> GetProbeMulticastGroup(Ipv4Address multicastAddress);
-
   std::vector<uint32_t> LookUpMulticastGroup(Ipv4Address probeAddress);
+
+  Ptr<Ipv4Route> LoopbackRoute (const Ipv4Header &header, Ptr<NetDevice> oif) const;
 
 private:
   Ptr<Ipv4> m_ipv4;
   bool m_isTor;
   uint32_t m_torId;
+
+  Ptr<NetDevice> m_lo;
+  std::list<Ipv4MulticastRoutingTableEntry> m_multicastRoutes;
 
   std::map<Ipv4Address, uint32_t> m_addressToTorIdMap;
   /* std::map<uint32_t, std::vector<uint32_t>> m_torToUpstreamInterfaceMap; // control plane set up */ 

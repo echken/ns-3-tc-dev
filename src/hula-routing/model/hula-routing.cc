@@ -85,6 +85,13 @@ Ipv4CongaRouting::PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::Unit
 void Ipv4HulaRouting::SetIpv4(Ptr<Ipv4> ipv4)
 {
   m_ipv4 = ipv4;
+  NS_ASSERT(m_ipv4->GetNInterfaces()==1 && m_ipv4->GetAddress(0,0).GetLocal() == Ipv4Address("127.0.0.1"));
+  m_lo = m_ipv4->GetNetDevice(0);
+
+  NS_ASSERT(m_lo != 0);
+
+  RoutingTableEntry()
+
 }
 
 void Ipv4HulaRouting::SetTorId(uint32_t torId)
@@ -241,17 +248,115 @@ void Ipv4HulaRouting::AddRoute(Ipv4Address network, Ipv4Mask networkMask, uint32
 Ptr<Ipv4Route> Ipv4HulaRouting::RouteOutput(Ptr<Packet> p, const Ipv4Header &header, Ptr<NetDevice> oif, Socket::SocketErrno &socketError)
 {
   //TODO, tor switch send probe packet periodicaly.
-  // datapath: routeoutput -----> routeinput
-  if(m_isTor)
+  // datapath: routeoutput -----> loopback device ----->  routeinput ----> multicast forwarding
+  Ipv4HulaTag ipv4HulaTag;
+  bool isFoundHulaTag = p->PeekPacketTag(ipv4HulaTag);
+
+  if(isFoundHulaTag && m_isTor)
   {
-    
+    // route to loopback device 
+    //or lookup probe multicast route table
+    return LoopbackRoute(header, oif);
   }
   return 0;
 }
 
+Ptr<Ipv4Route> Ipv4HulaRouting::LoopbackRoute(const Ipv4Header &hdr, Ptr<NetDevice> oif) const
+{
+  NS_LOG_FUNCTION(this << hdr);
+  NS_ASSERT(m_lo != 0);
+  Ptr<Ipv4Route> rt = Create<Ipv4Route> ();
+  rt->SetDestination(hdr.GetDestination());
+  //XXX. need be set correct source address 
+  rt->SetSource(hdr.GetSource());
+
+  rt->SetGateway(Ipv4Address("127.0.0.1"));
+  rt->SetOutputDevice(m_lo);
+  return  rt;
+}
+
+void Ipv4HulaRouting::AddMulticastRoute(Ipv4Address origin, Ipv4Address group, uint32_t inputInterface, std::vector<uint32_t> outputInterfaces)
+{
+  NS_LOG_FUNCTION(this << origin << " " << group " " << inputInterface << " " << &outputInterfaces);
+  Ipv4MulticastRoutingTableEntry *route = new Ipv4MulticastRoutingTableEntry();
+  *route = Ipv4MulticastRoutingTableEntry::CreateMulticastRoute(origin, group, inputInterface, outputInterfaces);
+
+  m_multicastRoutes.push_back(route);
+}
+
+Ipv4MulticastRoutingTableEntry Ipv4HulaRouting::GetMulticastRoute(uint32_t index) const
+{
+  NS_LOG_FUNCTION(this << index);
+  NS_ASSERT(index < m_multicastRoutes.size()), "Ipv4HulaRouting::GetMulticastRoute(): index out of range");
+
+  if (index < m_multicastRoutes.size())
+  {
+    uint32_t tmp = 0;
+    for (std::list<Ipv4MulticastRoutingTableEntry>::iterator multicastRoutesItr = m_multicastRoutes.begin(); multicastRoutesItr != 
+         m_multicastRoutes.end(); multicastRoutesItr++)
+    {
+      if(tmp == index)
+      {
+        return *m_multicastRoutesItr;
+      }
+      tmp++;
+    }
+  }
+  return 0;
+}
+
+Ptr<Ipv4MulticastRoute> Ipv4HulaRouting::LookupMulticastRoute(Ipv4Address origin, Ipv4Address group, uint32_t interface)
+{
+  NS_LOG_FUNCTION (this << origin << " " << group << " " << interface);
+  Ptr<Ipv4MulticastRoute> mrtentry = 0;
+
+  for (std::list<Ipv4MulticastRoutingTableEntry>::iterator multicastRoutesItr = m_multicastRoutes.begin();
+       multicastRoutesItr != m_multicastRoutes.end();
+       multicastRoutesItr++) 
+    {
+      Ipv4MulticastRoutingTableEntry *route = *multicastRoutesItr;
+//
+// We've been passed an origin address, a multicast group address and an 
+// interface index.  We have to decide if the current route in the list is
+// a match.
+//
+// The first case is the restrictive case where the origin, group and index
+// matches.
+//
+      if (origin == route->GetOrigin () && group == route->GetGroup ())
+        {
+          // Skipping this case (SSM) for now
+          NS_LOG_LOGIC ("Found multicast source specific route" << *multicastRoutesItr);
+        }
+      if (group == route->GetGroup ())
+        {
+          //TODO when send probe packet at src tor switch, set interface to ipv4::IF_ANY
+          if (interface == Ipv4::IF_ANY || 
+              interface == route->GetInputInterface ())
+            {
+              NS_LOG_LOGIC ("Found multicast route" << *multicastRoutesItr);
+              mrtentry = Create<Ipv4MulticastRoute> ();
+              mrtentry->SetGroup (route->GetGroup ());
+              mrtentry->SetOrigin (route->GetOrigin ());
+              mrtentry->SetParent (route->GetInputInterface ());
+              for (uint32_t j = 0; j < route->GetNOutputInterfaces (); j++)
+                {
+                  if (route->GetOutputInterface (j))
+                    {
+                      NS_LOG_LOGIC ("Setting output interface index " << route->GetOutputInterface (j));
+                      mrtentry->SetOutputTtl (route->GetOutputInterface (j), Ipv4MulticastRoute::MAX_TTL - 1);
+                    }
+                }
+              return mrtentry;
+            }
+        }
+    }
+  return mrtentry;
+}
+
 std::vector<uint32_t> Ipv4HulaRouting::LookUpMulticastGroup(Ipv4Address probeAddress)
 {
-  std::map<Ipv4Address>::iterator probeMulticastItr = m_probeMulticastTable.find(probeAddress);
+  std::map<Ipv4Address, std::vector<uint32_t>>::iterator probeMulticastItr = m_probeMulticastTable.find(probeAddress);
   return probeMulticastItr->second;
 }
 
@@ -293,7 +398,7 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
     bool isFoundHulaTag = packet->PeekPacketTag(ipv4HulaTag);
 
     bool isSrcTor = false;
-    // TODO. how to identify src && dest tor(first or last hop)
+    // TODO. how to identify src && dest tor(first or last hop), TTL
     if(isSrcTor)
     {
       if(!isFoundHulaTag)
@@ -382,13 +487,29 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
       else
       {
         // 1.a).ii) src tor && probe packet
-        uint32_t torId = ipv4HulaTag.GetTorId();
-        uint32_t maxPathUtil = ipv4HulaTag.GetMaxPathUtil();
-        Ipv4Address probeMulticatAddress = ipv4HulaTag.GetProbeDestAddress();
-        // 1> select list of output interface; 
-        std::vector<uint32_t> probeInterface = Ipv4HulaRouting::GetProbeMulticastGroup(probeMulticatAddress);
-        //TODO. UNICAST route one by one, or multicast route function ??
-        
+        if(idev == m_lo && header.GetDestination().IsMulticast())
+        {
+          //src tor, probe packet. multicast forwarding.
+          uint32_t torId = ipv4HulaTag.GetTorId();
+          uint32_t maxPathUtil = ipv4HulaTag.GetMaxPathUtil();
+          
+          Ipv4Address probeMulticatAddress = ipv4HulaTag.GetProbeDestAddress();
+          //TODO. UNICAST route one by one, or multicast route function ??
+          //whether idev == m_lo
+          Ptr<Ipv4MulticastRoute> mrtentry = LookupMulticastRoute(header.GetSource(), header.GetDestination(), m_ipv4->GetInterfaceForDevice(idev));
+
+          if(mrtentry)
+          {
+            NS_LOG_LOGIC("multicast forwarding probe packet");
+            mcb(mrtentry, packet, header);
+            return true;
+          }
+          else 
+          {
+            NS_LOG_LOGIC("multicasr route not found ");
+            return false;
+          }
+        }
       } // end probe packet 
 
     } //end src tor 
@@ -482,6 +603,18 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
       }
 
       //TODO.  lookup multicast route table for route probe packet out
+      Ptr<Ipv4MulticastRoute> mrtentry = LookupMulticastRoute(header.GetSource(), header.GetDestination(), m_ipv4->GetInterfaceForDevice(idev));
+      if(mrtentry)
+      {
+        NS_LOG_LOGIC(this << "multicast forwarding probe packet on intermediate node");
+        mcb(mrtentry, packet, header);
+        return true;
+      }
+      else
+      {
+        NS_LOG_LOGIC("multicast route not found");
+        return false;
+      }
     } //end 2.a) non-tor && probe packet
     else
     {
