@@ -55,14 +55,14 @@ Ipv4Address Ipv4HulaTag::GetProbeDestAddress(void) const
   return m_probeDstAddress;
 }
 
-void Ipv4HulaTag::SetOutputInterface(uint32_t outputInterface)
-{
-  m_outputInterface = outputInterface;
-}
-uint32_t Ipv4HulaTag::GetOutputInterface(void) const
-{
-  return m_outputInterface;
-}
+/* void Ipv4HulaTag::SetOutputInterface(uint32_t outputInterface) */
+/* { */
+/*   m_outputInterface = outputInterface; */
+/* } */
+/* uint32_t Ipv4HulaTag::GetOutputInterface(void) const */
+/* { */
+/*   return m_outputInterface; */
+/* } */
 
 void Ipv4HulaTag::SetDirection(uint32_t direction)
 {
@@ -85,7 +85,7 @@ uint32_t Ipv4HulaTag::GetSwitchRole(void) const
 void Ipv4HulaTag::Serialize(TagBuffer i) const
 {
   i.WriteU32(m_maxPathUtil);
-  i.WriteU32(m_outputInterface);
+  /* i.WriteU32(m_outputInterface); */
   i.WriteU32(m_direction);
   //TODO write ipv4Address to serialized stream
 }
@@ -93,7 +93,7 @@ void Ipv4HulaTag::Serialize(TagBuffer i) const
 void Ipv4HulaTag::Deserialize(TagBuffer i)
 {
   m_maxPathUtil = i.ReadU32();
-  m_outputInterface = i.ReadU32();
+  /* m_outputInterface = i.ReadU32(); */
   m_direction = i.ReadU32();
   //TODO read ipv4address
 }
@@ -102,14 +102,12 @@ uint32_t Ipv4HulaTag::GetSerializedSize(void) const
 {
   return sizeof(uint32_t)
     + sizeof(uint32_t)
-    + sizeof(uint32_t)
     + sizeof(Ipv4Address);
 }
 
 void Ipv4HulaTag::Print(std::ostream &os) const
 {
-  os << "path:"    << m_outputInterface
-     << "util:"    << m_maxPathUtil
+  os << "util:"    << m_maxPathUtil
      << "address:" << m_probeDstAddress;
 }
 

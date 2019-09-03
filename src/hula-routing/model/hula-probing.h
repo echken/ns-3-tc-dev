@@ -17,8 +17,8 @@ class Ipv4HulaProbing: public Object
 public:
   static TypeId GetTypeId(void);
   virtual TypeId GetInstanceTypeId(void) const;
-  HulaProbing();
-  ~HulaProbing();
+  Ipv4HulaProbing();
+  ~Ipv4HulaProbing();
 
   //construct probe packet header
   void SetSrcAddress(Ipv4Address srcaddress);
@@ -29,18 +29,13 @@ public:
   void StopProbe(Time stopTimer);
   void DoStartProbe();
   void DoStopProbe();
-  void SendProbe(uint32_t pathId);
+  void SendProbe();
 
   void ReceivePacket(Ptr<Socket> socket);
 
   //update probe packet maxPathUtil fileds???
   
 private:
-  /* std::map<Ipv4Address, std::pair<uint32_t, double>> m_hulaPathUtilTable; */
-  Ptr<Ipv4> m_ipv4;
-  Ptr<Socket> m_socket;
-  Ptr<Node> m_node;
-  
   //for construct probe packet!
   //[srcaddress, destaddress, TorId, interface??, maxPathUtil]
   Ipv4Address m_probeSrcAddress;
@@ -48,6 +43,11 @@ private:
   Time m_probeInterval;
   uint32_t m_maxPathUtil;
   uint32_t m_torId;
+
+  /* std::map<Ipv4Address, std::pair<uint32_t, double>> m_hulaPathUtilTable; */
+  Ptr<Ipv4> m_ipv4;
+  Ptr<Socket> m_socket;
+  Ptr<Node> m_node;
 
   EventId m_probeEvent;
 };

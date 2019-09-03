@@ -4,6 +4,7 @@
 #include "ns3/packet.h"
 #include "ns3/ipv4-raw-socket-factory.h"
 #include "ns3/ipv4-header.h"
+#include "ns3/boolean.h"
 
 #include "hula-probing.h"
 #include "hula-tag.h"
@@ -27,6 +28,21 @@ TypeId Ipv4HulaProbing::GetTypeId(void)
   return tid;
 }
 
+Ipv4HulaProbing::Ipv4HulaProbing()
+  :m_probeSrcAddress(Ipv4Address("127.0.0.1")),
+   m_probeDstAddress(Ipv4Address("127.0.0.1")),
+   m_probeInterval(MicroSeconds(1000)),
+   m_torId(0),
+   m_node()
+{
+  NS_LOG_FUNCTION(this);
+}
+
+Ipv4HulaProbing::~Ipv4HulaProbing()
+{
+  NS_LOG_FUNCTION(this);
+}
+
 TypeId Ipv4HulaProbing::GetInstanceTypeId() const
 {
   return Ipv4HulaTag::GetTypeId();
@@ -44,15 +60,15 @@ void Ipv4HulaProbing::SetDstAddress(Ipv4Address address)
 
 void Ipv4HulaProbing::StopProbe(Time stopTimer)
 {
-  Simulator::Schedule(stopTimer, &Ipv4HulaProbing::DoStopProbe(), this);
+  Simulator::Schedule(stopTimer, &Ipv4HulaProbing::DoStopProbe, this);
 }
 
 void Ipv4HulaProbing::StartProbe()
 {
   m_socket = m_node->GetObject<Ipv4RawSocketFactory>()->CreateSocket();
   m_socket->SetRecvCallback(MakeCallback(&Ipv4HulaProbing::ReceivePacket, this));
-  m_socket->bind(InetSocketAddress(Ipv4Address("0.0.0.0"), 0));
-  /* m_socket->SetAttribute("IpHeaderInclude", BooleanValue(true)); */
+  m_socket->Bind(InetSocketAddress(Ipv4Address("0.0.0.0"), 0));
+  m_socket->SetAttribute("IpHeaderInclude", BooleanValue(true));
 
   m_probeEvent = Simulator::ScheduleNow(&Ipv4HulaProbing::DoStartProbe, this); 
 }
@@ -65,24 +81,26 @@ void Ipv4HulaProbing::DoStopProbe()
 void Ipv4HulaProbing::DoStartProbe()
 {
   //for all avaliable output interface of tor switch,  send probing packet periodically.
-  uint32_t interfaceCount = 32;
 
   //TODO 
   //1. server/hypervisor probe, or
   //2. tor switch probe
-  for(uint32_t i = 0; i < interfaceCount; i++)
-  {
-    Ipv4HulaProbing::SendProbe(i);
-  }
+  /* uint32_t interfaceCount = 32; */
+  /* for(uint32_t i = 0; i < interfaceCount; i++) */
+  /* { */
+  /*   Ipv4HulaProbing::SendProbe(i); */
+  /* } */
+  Ipv4HulaProbing::SendProbe();
 
   m_probeEvent = Simulator::Schedule(m_probeInterval, &Ipv4HulaProbing::DoStartProbe, this);
 }
 
-void Ipv4HulaProbing::SendProbe(uint32_t interface)
+void Ipv4HulaProbing::SendProbe()
 {
   //construct probe packet
   Address toAddress = InetSocketAddress(m_probeDstAddress, 0);
 
+  Ptr<Packet> packet = Create<Packet>(0);
   Ipv4Header newheader;
   newheader.SetSource(m_probeSrcAddress);
   newheader.SetDestination(m_probeDstAddress);
@@ -90,12 +108,13 @@ void Ipv4HulaProbing::SendProbe(uint32_t interface)
   newheader.SetPayloadSize(packet->GetSize());
   newheader.SetTtl(255);
 
-  Ptr<Packet> packet = Create<Packet>(0);
   packet->AddHeader(newheader);
   
   //add packet tag 
   Ipv4HulaTag ipv4HulaTag;
-  ipv4HulaTag.SetOutputInterface(interface);
+  //FIXME. should set outputinterface while send out of specific interface.
+  //initialize with 0 ???
+  /* ipv4HulaTag.SetOutputInterface(interface); */
   ipv4HulaTag.SetMaxPathUtil(0);
   ipv4HulaTag.SetDirection(0);
   ipv4HulaTag.SetProbeDestAddress(m_probeDstAddress);

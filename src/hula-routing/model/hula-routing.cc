@@ -5,6 +5,7 @@
 #include "hula-tag.h"
 
 #include "ns3/ipv4.h"
+#include "ns3/ipv4-route.h"
 #include "ns3/simulator.h"
 #include "ns3/node.h"
 #include "ns3/net-device.h"
@@ -13,6 +14,9 @@
 #include "ns3/log.h"
 
 namespace ns3 {
+
+NS_LOG_COMPONENT_DEFINE("Ipv4HulaRouting");
+NS_OBJECT_ENSURE_REGISTERED(Ipv4HulaRouting);
 
 TypeId Ipv4HulaRouting::GetTypeId()
 {
@@ -34,7 +38,7 @@ TypeId Ipv4HulaRouting::GetTypeId()
   return tid;
 }
 
-void Ipv4HulaRouting::Ipv4HulaRouting():
+Ipv4HulaRouting::Ipv4HulaRouting():
   m_ipv4(0),
   m_isTor(false),
   m_torId(0),
@@ -46,39 +50,39 @@ void Ipv4HulaRouting::Ipv4HulaRouting():
 
 }
 
-void Ipv4HulaRouting::~Ipv4HulaRouting()
+Ipv4HulaRouting::~Ipv4HulaRouting()
 {
 
 }
 
-TypeId Ipv4HulaRouting::GetInstanceTypeId() const
+TypeId Ipv4HulaRouting::GetInstanceTypeId(void) const
 {
   return Ipv4HulaRouting::GetTypeId();
 }
 
 
 void
-Ipv4CongaRouting::NotifyInterfaceUp (uint32_t interface)
+Ipv4HulaRouting::NotifyInterfaceUp (uint32_t interface)
 {
 }
 
 void
-Ipv4CongaRouting::NotifyInterfaceDown (uint32_t interface)
+Ipv4HulaRouting::NotifyInterfaceDown (uint32_t interface)
 {
 }
 
 void
-Ipv4CongaRouting::NotifyAddAddress (uint32_t interface, Ipv4InterfaceAddress address)
+Ipv4HulaRouting::NotifyAddAddress (uint32_t interface, Ipv4InterfaceAddress address)
 {
 }
 
 void
-Ipv4CongaRouting::NotifyRemoveAddress (uint32_t interface, Ipv4InterfaceAddress address)
+Ipv4HulaRouting::NotifyRemoveAddress (uint32_t interface, Ipv4InterfaceAddress address)
 {
 }
 
 void
-Ipv4CongaRouting::PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::Unit uint) const 
+Ipv4HulaRouting::PrintRoutingTable (Ptr<OutputStreamWrapper> stream, Time::Unit uint) const 
 {
 }
 
@@ -90,7 +94,7 @@ void Ipv4HulaRouting::SetIpv4(Ptr<Ipv4> ipv4)
 
   NS_ASSERT(m_lo != 0);
 
-  RoutingTableEntry()
+  Ipv4RoutingTableEntry();
 
 }
 
@@ -133,12 +137,12 @@ uint32_t Ipv4HulaRouting::GetSwitchRole() const
   return role;
 }
 
-uint32_t GetDirection(Ptr<Packet> packet)
+uint32_t Ipv4HulaRouting::GetDirection(Ptr<Packet> packet)
 {
   Ipv4HulaTag ipv4HulaTag;
   packet->PeekPacketTag(ipv4HulaTag);
   uint32_t previousSwitchRole = ipv4HulaTag.GetSwitchRole();
-  uint32_t currentSwitchRole = Ipv4HulaRouting::GetSwitchRole();
+  uint32_t currentSwitchRole = GetSwitchRole();
   uint32_t direction = ((currentSwitchRole - previousSwitchRole) > 0) ? 0 : 1;
 
   return direction;
@@ -177,13 +181,13 @@ void Ipv4HulaRouting::UpdateOutputTrafficEvent()
   for(; (outputLinkUtilItr != m_outputLinkUtilMap.end()) && (outputLinkUtilItr != m_outputLinkUtilMap.end())
       ; outputTrafficItr++, outputLinkUtilItr++)
   {
-    pathUtil = (outputLinkUtilItr->second).second;
-    outputTraffic = outputTrafficItr->second;
+    double pathUtil = (outputLinkUtilItr->second).second;
+    double outputTraffic = outputTrafficItr->second;
 
-    Time updateTimeUtilNow = Simulator::Now().GetMicroSeconds() - m_latestPathUtilUpdateTime.GetMicroSeconds();
-    double utilRatio = updateTimeUtilNow / m_pathUpdateIterval;
+    int64_t updateTimeUtilNow = Simulator::Now().GetMicroSeconds() - m_latestPathUtilUpdateTime.GetMicroSeconds();
+    double utilRatio = updateTimeUtilNow / m_pathUpdateIterval.GetMicroSeconds();
     //XXX. only need current packet size
-    newPathUtil = outputTraffic + pathUtil * (1 - utilRatio);
+    double newPathUtil = outputTraffic + pathUtil * (1 - utilRatio);
 
     if(newPathUtil != 0)
     {
@@ -206,18 +210,19 @@ void Ipv4HulaRouting::OutputLinkUtilUpdate(const Ipv4Header &header, Ptr<Packet>
   std::map<uint32_t, std::pair<Time, uint32_t>>::iterator outputLinkUtilItr = m_outputLinkUtilMap.find(port);
 
   uint32_t currentPacketSize = packet->GetSize() + header.GetSerializedSize();
-  uint32_t pathUtil = outputLinkUtilItr.second;
+  uint32_t pathUtil = outputLinkUtilItr->second.second;
 
-  Time updateTimeUtilNow = Simulator::Now().GetMicroSeconds() - outputLinkUtilItr.first.GetMicroSeconds();
-  double utilRatio = updateTimeUtilNow/m_pathUpdateIterval;
-  newPathUtil = currentPacketSize + static_cast<uint32_t>(pathUtil * (1 - utilRatio));
+  int64_t updateTimeUtilNow = Simulator::Now().GetMicroSeconds() - outputLinkUtilItr->second.first.GetMicroSeconds();
+  double utilRatio = updateTimeUtilNow/m_pathUpdateIterval.GetMicroSeconds();
+  uint32_t newPathUtil = currentPacketSize + static_cast<uint32_t>(pathUtil * (1 - utilRatio));
 
-  m_outputLinkUtilMap[port] = std::make_pair<Simulator::Now(), newPathUtil>();
+  m_outputLinkUtilMap[port] = std::pair<Time, uint32_t>(Simulator::Now(), newPathUtil);
+  /* m_outputLinkUtilMap[port] = std::make_pair<Simulator::Now(), newPathUtil>(); */
 }
 
 Ptr<Ipv4Route> Ipv4HulaRouting::ConstructIpv4HulaRoute(uint32_t port, Ipv4Address destAddress)
 {
-  NS_LOG_LOGIC(this << "construct an route entry");
+  NS_LOG_LOGIC("construct an route entry");
   Ptr<NetDevice> netdev = m_ipv4->GetNetDevice(port);
   Ptr<Channel> channel = netdev->GetChannel();
   uint32_t peerEnd = (channel->GetDevice(0) == netdev) ? 1 : 0;
@@ -228,7 +233,7 @@ Ptr<Ipv4Route> Ipv4HulaRouting::ConstructIpv4HulaRoute(uint32_t port, Ipv4Addres
   Ptr<Ipv4Route> route = Create<Ipv4Route>();
   route->SetOutputDevice(m_ipv4->GetNetDevice(port));
   route->SetGateway(nextHopAddr);
-  route->SetSource(m_ipv4->GetAddress(port, 0)->GetLocal());
+  route->SetSource(m_ipv4->GetAddress(port, 0).GetLocal());
   route->SetDestination(destAddress);
 
   return route;
@@ -237,7 +242,7 @@ Ptr<Ipv4Route> Ipv4HulaRouting::ConstructIpv4HulaRoute(uint32_t port, Ipv4Addres
 void Ipv4HulaRouting::AddRoute(Ipv4Address network, Ipv4Mask networkMask, uint32_t port)
 {
   NS_LOG_LOGIC(this << "add ipv4hula route entry");
-  Ipv4HulaRouteEntry = ipv4HulaRouteEntry;
+  Ipv4HulaRouteEntry ipv4HulaRouteEntry;
   ipv4HulaRouteEntry.network = network;
   ipv4HulaRouteEntry.networkMask = networkMask;
   ipv4HulaRouteEntry.port = port;
@@ -277,7 +282,7 @@ Ptr<Ipv4Route> Ipv4HulaRouting::LoopbackRoute(const Ipv4Header &hdr, Ptr<NetDevi
 
 void Ipv4HulaRouting::AddMulticastRoute(Ipv4Address origin, Ipv4Address group, uint32_t inputInterface, std::vector<uint32_t> outputInterfaces)
 {
-  NS_LOG_FUNCTION(this << origin << " " << group " " << inputInterface << " " << &outputInterfaces);
+  NS_LOG_FUNCTION(this << origin << " " << group <<" " << inputInterface << " " << &outputInterfaces);
   Ipv4MulticastRoutingTableEntry *route = new Ipv4MulticastRoutingTableEntry();
   *route = Ipv4MulticastRoutingTableEntry::CreateMulticastRoute(origin, group, inputInterface, outputInterfaces);
 
@@ -287,17 +292,17 @@ void Ipv4HulaRouting::AddMulticastRoute(Ipv4Address origin, Ipv4Address group, u
 Ipv4MulticastRoutingTableEntry Ipv4HulaRouting::GetMulticastRoute(uint32_t index) const
 {
   NS_LOG_FUNCTION(this << index);
-  NS_ASSERT(index < m_multicastRoutes.size()), "Ipv4HulaRouting::GetMulticastRoute(): index out of range");
+  NS_ASSERT_MSG(index < m_multicastRoutes.size(), "Ipv4HulaRouting::GetMulticastRoute(): index out of range");
 
   if (index < m_multicastRoutes.size())
   {
     uint32_t tmp = 0;
-    for (std::list<Ipv4MulticastRoutingTableEntry>::iterator multicastRoutesItr = m_multicastRoutes.begin(); multicastRoutesItr != 
+    for (std::list<Ipv4MulticastRoutingTableEntry *>::const_iterator multicastRoutesItr = m_multicastRoutes.begin(); multicastRoutesItr != 
          m_multicastRoutes.end(); multicastRoutesItr++)
     {
       if(tmp == index)
       {
-        return *m_multicastRoutesItr;
+        return *multicastRoutesItr;
       }
       tmp++;
     }
@@ -310,7 +315,7 @@ Ptr<Ipv4MulticastRoute> Ipv4HulaRouting::LookupMulticastRoute(Ipv4Address origin
   NS_LOG_FUNCTION (this << origin << " " << group << " " << interface);
   Ptr<Ipv4MulticastRoute> mrtentry = 0;
 
-  for (std::list<Ipv4MulticastRoutingTableEntry>::iterator multicastRoutesItr = m_multicastRoutes.begin();
+  for (std::list<Ipv4MulticastRoutingTableEntry *>::const_iterator multicastRoutesItr = m_multicastRoutes.begin();
        multicastRoutesItr != m_multicastRoutes.end();
        multicastRoutesItr++) 
     {
@@ -354,13 +359,7 @@ Ptr<Ipv4MulticastRoute> Ipv4HulaRouting::LookupMulticastRoute(Ipv4Address origin
   return mrtentry;
 }
 
-std::vector<uint32_t> Ipv4HulaRouting::LookUpMulticastGroup(Ipv4Address probeAddress)
-{
-  std::map<Ipv4Address, std::vector<uint32_t>>::iterator probeMulticastItr = m_probeMulticastTable.find(probeAddress);
-  return probeMulticastItr->second;
-}
-
-bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, Ptr<NetDevice> idev,
+bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, Ptr<const NetDevice> idev,
                                  UnicastForwardCallback ucb, MulticastForwardCallback mcb, LocalDeliverCallback lcb,
                                  ErrorCallback ecb)
 {
@@ -376,8 +375,10 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
   if(!isFoundFlowId)
   {
     NS_LOG_ERROR(this << "can't find flowidtag");
+    ecb(packet, header, Socket::ERROR_NOROUTETOHOST);
+    return false;
   }
-  uint32_t flowId = flowIdTag.GetflowId();
+  uint32_t flowId = flowIdTag.GetFlowId();
 
   uint32_t selectedPort = 0;
 
@@ -422,43 +423,45 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
           {
             //1.1> not the normal case 
             NS_LOG_ERROR(this << "error");
+            ecb(packet, header, Socket::ERROR_NOROUTETOHOST);
+            return false;
           }
-
-          Time flowletGap = Simulator::Now().GetMicroSeconds() - flowletInfo->updateTime.GetMicroSeconds();
-          if(flowletInfo != NULL
-             && flowletGap < m_flowletTimeOut.GetMicroSeconds())
+          else
           {
-            //1.2> 
-            selectedPort = flowletInfo->interface;
-            flowletInfo->updateTime = Simulator::Now();
+            int64_t flowletGap = Simulator::Now().GetMicroSeconds() - flowletInfo->updateTime.GetMicroSeconds();
+            if(flowletGap <= m_flowletTimeOut.GetMicroSeconds())
+            {
+              //1.2> 
+              selectedPort = flowletInfo->interface;
+              flowletInfo->updateTime = Simulator::Now();
 
-            //update tx linkUtil metric estimator of selectedPort.
-            Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
-            Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
-            ucb(route, packet, header);
-            NS_LOG_LOGIC(this << " route packet out");
+              //update tx linkUtil metric estimator of selectedPort.
+              Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
+              Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
+              ucb(route, packet, header);
+              NS_LOG_LOGIC(this << " route packet out");
 
-            return true;
+              return true;
+            }
+            else
+            {
+              //1.3> re-select output interface ??
+              std::map<uint32_t, HulaPathUtilInfo>::iterator pathUtilItr = m_hulaPathUtilTable.find(destTorId);
+              selectedPort = (pathUtilItr->second).interface;
+
+              //switch to current best nexthop
+              flowletInfo->interface = selectedPort;
+              flowletInfo->updateTime = Simulator::Now();
+
+              Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
+              Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
+              ucb(route, packet, header);
+              NS_LOG_LOGIC(this << "route packet out");
+
+              return true;
+            }
           }
 
-          if(flowletInfo != NULL &&
-             flowletGap > m_flowletTimeOut.GetMicroSeconds())
-          {
-            //1.3> re-select output interface ??
-            std::map<uint32_t, HulaPathUtilInfo>::iterator pathUtilItr = m_hulaPathUtilTable.find(destTorId);
-            selectedPort = (pathUtilItr->second).interface;
-
-            //switch to current best nexthop
-            flowletInfo->interface = selectedPort;
-            flowletInfo->updateTime = Simulator::Now();
-
-            Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
-            Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
-            ucb(route, packet, header);
-            NS_LOG_LOGIC(this << "route packet out");
-
-            return true;
-          }
         } // end flowlet was found 
         else
         {
@@ -490,13 +493,13 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
         if(idev == m_lo && header.GetDestination().IsMulticast())
         {
           //src tor, probe packet. multicast forwarding.
-          uint32_t torId = ipv4HulaTag.GetTorId();
-          uint32_t maxPathUtil = ipv4HulaTag.GetMaxPathUtil();
+          /* uint32_t torId = ipv4HulaTag.GetTorId(); */
+          /* uint32_t maxPathUtil = ipv4HulaTag.GetMaxPathUtil(); */
           
           Ipv4Address probeMulticatAddress = ipv4HulaTag.GetProbeDestAddress();
           //TODO. UNICAST route one by one, or multicast route function ??
           //whether idev == m_lo
-          Ptr<Ipv4MulticastRoute> mrtentry = LookupMulticastRoute(header.GetSource(), header.GetDestination(), m_ipv4->GetInterfaceForDevice(idev));
+          Ptr<Ipv4MulticastRoute> mrtentry = LookupMulticastRoute(header.GetSource(), probeMulticatAddress,  m_ipv4->GetInterfaceForDevice(idev));
 
           if(mrtentry)
           {
@@ -507,8 +510,14 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
           else 
           {
             NS_LOG_LOGIC("multicasr route not found ");
+            ecb(packet, header, Socket::ERROR_NOROUTETOHOST);
             return false;
           }
+        }
+        else
+        {
+          //TODO. non-probe non-normal data packet 
+          return false;
         }
       } // end probe packet 
 
@@ -520,6 +529,7 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
       {
         // 1.b).i) dest tor && normal packet
         // TODO normal routing 
+        return true;
       }
       else
       {
@@ -557,6 +567,7 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
           // does not need update best hop
         }
         //TODO drop probe packet in dest tor
+        return true;
       }
       
     } //end dst tor
@@ -593,13 +604,13 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
         {
           (hulaPathUtilItr->second).interface = inputInterface;
           (hulaPathUtilItr->second).pathUtil = currentMaxPathUtil;
-          (hulaPathUtilItr->second).udpateTime = Simulator::Now();
+          (hulaPathUtilItr->second).updateTime = Simulator::Now();
         }
 
       }
       else
       {
-        // 
+        //doesn't need update best path util 
       }
 
       //TODO.  lookup multicast route table for route probe packet out
@@ -619,8 +630,6 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
     else
     {
       // 2.b). non-tor && normal packet
-      
-      
       //1. flowlet already found 
       //2. flowlet is not found
 
@@ -638,42 +647,43 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
         {
           //1.1> not the normal case 
           NS_LOG_ERROR(this << "error");
+          ecb(packet, header, Socket::ERROR_NOROUTETOHOST);
+          return false;
         }
-
-        Time flowletGap = Simulator::Now().GetMicroSeconds() - flowletInfo->updateTime.GetMicroSeconds();
-        if(flowletInfo != NULL
-           && flowletGap < m_flowletTimeOut.GetMicroSeconds())
+        else
         {
-          //1.2> 
-          selectedPort = flowletInfo->interface;
-          flowletInfo->updateTime = Simulator::Now();
+          int64_t flowletGap = Simulator::Now().GetMicroSeconds() - flowletInfo->updateTime.GetMicroSeconds();
+          if(flowletGap <= m_flowletTimeOut.GetMicroSeconds())
+          {
+            //1.2> 
+            selectedPort = flowletInfo->interface;
+            flowletInfo->updateTime = Simulator::Now();
 
-          //update tx linkUtil metric estimator of selectedPort.
-          Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
-          Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
-          ucb(route, packet, header);
-          NS_LOG_LOGIC(this << " route packet out");
+            //update tx linkUtil metric estimator of selectedPort.
+            Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
+            Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
+            ucb(route, packet, header);
+            NS_LOG_LOGIC(this << " route packet out");
 
-          return true;
-        }
+            return true;
+          }
+          else
+          {
+            //1.3> re-select output interface ??
+            std::map<uint32_t, HulaPathUtilInfo>::iterator pathUtilItr = m_hulaPathUtilTable.find(destTorId);
+            selectedPort = (pathUtilItr->second).interface;
 
-        if(flowletInfo != NULL &&
-           flowletGap > m_flowletTimeOut.GetMicroSeconds())
-        {
-          //1.3> re-select output interface ??
-          std::map<uint32_t, HulaPathUtilInfo>::iterator pathUtilItr = m_hulaPathUtilTable.find(destTorId);
-          selectedPort = (pathUtilItr->second).interface;
+            //switch to current best nexthop
+            flowletInfo->interface = selectedPort;
+            flowletInfo->updateTime = Simulator::Now();
 
-          //switch to current best nexthop
-          flowletInfo->interface = selectedPort;
-          flowletInfo->updateTime = Simulator::Now();
+            Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
+            Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
+            ucb(route, packet, header);
+            NS_LOG_LOGIC(this << "route packet out");
 
-          Ipv4HulaRouting::OutputLinkUtilUpdate(header, packet, selectedPort);
-          Ptr<Ipv4Route> route = Ipv4HulaRouting::ConstructIpv4HulaRoute(selectedPort, destAddress);
-          ucb(route, packet, header);
-          NS_LOG_LOGIC(this << "route packet out");
-
-          return true;
+            return true;
+          }
         }
       } // end bestHopItr != m_bestHopTable.end();
       else
@@ -703,26 +713,33 @@ bool Ipv4HulaRouting::RouteInput(Ptr<const Packet> p, const Ipv4Header &header, 
 
 }
 
-void Ipv4HulaRouting::SetProbeMulticastGroup(Ipv4Address multicastAddress, std::vector<uint32_t> outputInterfaceSet)
-{
-  std::vector<uint32_t>::iterator outputInterfaceItr = outputInterfaceSet.begin();
-  for(; outputInterfaceItr != outputInterfaceSet.end(); outputInterfaceItr++)
-  {
-    Ipv4HulaRouting::SetProbeMulticastInterface(multicastAddress, *outputInterfaceItr);
-  }
-}
-
-std::vector<uint32_t> Ipv4HulaRouting::GetProbeMulticastGroup(Ipv4Address multicastAddress)
-{
-  std::map<Ipv4Address, std::vector<uint32_t>>::iterator probeMulticastItr = m_probeMulticastTable.find(multicastAddress);
-  return probeMulticastItr->second;
-}
-
-void Ipv4HulaRouting::SetProbeMulticastInterface(Ipv4Address multicastAddress, uint32_t interface)
-{
-  std::map<Ipv4Address, std::vector<uint32_t>>::iterator probeMulticastItr = m_probeMulticastTable.find(multicastAddress);
-  
-  probeMulticastItr->push_back(interface);
-}
-
 } // end ns3 
+
+/* void Ipv4HulaRouting::SetProbeMulticastGroup(Ipv4Address multicastAddress, std::vector<uint32_t> outputInterfaceSet) */
+/* { */
+/*   std::vector<uint32_t>::iterator outputInterfaceItr = outputInterfaceSet.begin(); */
+/*   for(; outputInterfaceItr != outputInterfaceSet.end(); outputInterfaceItr++) */
+/*   { */
+/*     Ipv4HulaRouting::SetProbeMulticastInterface(multicastAddress, *outputInterfaceItr); */
+/*   } */
+/* } */
+
+/* std::vector<uint32_t> Ipv4HulaRouting::GetProbeMulticastGroup(Ipv4Address multicastAddress) */
+/* { */
+/*   std::map<Ipv4Address, std::vector<uint32_t>>::iterator probeMulticastItr = m_probeMulticastTable.find(multicastAddress); */
+/*   return probeMulticastItr->second; */
+/* } */
+
+/* void Ipv4HulaRouting::SetProbeMulticastInterface(Ipv4Address multicastAddress, uint32_t interface) */
+/* { */
+/*   std::map<Ipv4Address, std::vector<uint32_t>>::iterator probeMulticastItr = m_probeMulticastTable.find(multicastAddress); */
+  
+/*   probeMulticastItr->push_back(interface); */
+/* } */
+
+/* std::vector<uint32_t> Ipv4HulaRouting::LookUpMulticastGroup(Ipv4Address probeAddress) */
+/* { */
+/*   std::map<Ipv4Address, std::vector<uint32_t>>::iterator probeMulticastItr = m_probeMulticastTable.find(probeAddress); */
+/*   return probeMulticastItr->second; */
+/* } */
+

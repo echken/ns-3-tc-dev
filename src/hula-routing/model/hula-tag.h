@@ -23,8 +23,8 @@ public:
   void SetProbeDestAddress(Ipv4Address destAddress);
   Ipv4Address GetProbeDestAddress(void) const;
   
-  void SetOutputInterface(uint32_t outputInterface);
-  uint32_t GetOutputInterface(void) const;
+  /* void SetOutputInterface(uint32_t outputInterface); */
+  /* uint32_t GetOutputInterface(void) const; */
 
   void SetDirection(uint32_t direction);
   uint32_t GetDirection(void) const;
@@ -42,7 +42,7 @@ private:
   uint32_t m_maxPathUtil;  // quantilized path util to specific bit string.
   uint32_t m_torId;
   Ipv4Address m_probeDstAddress;  // probe dest 
-  uint32_t m_outputInterface;  // send probe from it  
+  /* uint32_t m_outputInterface;  // send probe from it */  
 
   uint32_t m_direction;
   uint32_t m_switchRole;
